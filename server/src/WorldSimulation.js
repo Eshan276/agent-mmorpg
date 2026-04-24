@@ -322,12 +322,12 @@ export class WorldSimulation {
       return !this._isWalkable(tileX + dx, tileY + dy, agentId);
     });
 
-    const otherPlayers = [];
+    const otherAgents = [];
     for (const [id, p] of this._players) {
       if (id !== agentId) {
-        otherPlayers.push({
+        otherAgents.push({
           agentId: id, tileX: p.tileX, tileY: p.tileY,
-          direction: p.direction, hp: p.hp, zone: p.zone,
+          hp: p.hp, zone: p.zone,
         });
       }
     }
@@ -345,7 +345,7 @@ export class WorldSimulation {
       nearbyItems,
       blockedDirections,
       recentEvents: events,
-      otherPlayers,
+      otherAgents,
     };
   }
 

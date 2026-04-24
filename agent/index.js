@@ -12,7 +12,7 @@ program
   .option('--model <name>',     'Model name (provider-specific)')
   .option('--api-key <key>',    'Anthropic API key (or set ANTHROPIC_API_KEY)')
   .option('--ollama-url <url>', 'Ollama base URL',                   'http://localhost:11434')
-  .option('--tick-ms <ms>',     'Milliseconds between LLM ticks',   '800')
+  .option('--tick-ms <ms>',     'Milliseconds between LLM ticks',   '1200')
   .option('--agent-id <id>',    'Unique agent identifier',           `agent_${Math.random().toString(36).slice(2, 7)}`)
   .parse();
 
@@ -28,7 +28,7 @@ if (opts.provider === 'anthropic') {
   const modelArgs = {};
   if (opts.model) modelArgs.model = opts.model;
   provider = new AnthropicProvider({ apiKey, ...modelArgs });
-  console.log(`[Agent] Using Anthropic (model: ${opts.model ?? 'claude-sonnet-4-6'})`);
+  console.log(`[Agent] Using Anthropic (model: ${opts.model ?? 'claude-haiku-4-5-20251001'}) with tool use`);
 } else {
   const modelArgs = {};
   if (opts.model) modelArgs.model = opts.model;
