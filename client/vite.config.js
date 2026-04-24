@@ -4,7 +4,8 @@ import { resolve } from 'path';
 export default defineConfig({
   server: {
     port: 5173,
-    allowedHosts: 'all',
+    host: '0.0.0.0',
+    allowedHosts: true,
     proxy: {
       '/socket.io': {
         target: 'http://localhost:3000',
