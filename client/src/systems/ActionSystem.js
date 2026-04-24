@@ -130,6 +130,7 @@ export const ActionSystem = {
       case 'interact':   tryInteract();          break;
     }
   },
+  getMapObjects() { return mapObjects; },
 };
 
 // Global access for bots/devtools/future network layer

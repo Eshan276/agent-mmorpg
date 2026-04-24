@@ -1,36 +1,66 @@
-import { Server } from 'socket.io';
+import { Server }          from 'socket.io';
+import { WorldSimulation } from './WorldSimulation.js';
+
+const RENDER_INTERVAL_MS = 200;
 
 export class GameServer {
   constructor(httpServer) {
-    this.io = new Server(httpServer, {
-      cors: { origin: 'http://localhost:5173', methods: ['GET', 'POST'] },
-    });
+    this.io   = new Server(httpServer, { cors: { origin: '*', methods: ['GET', 'POST'] } });
+    this._sim = new WorldSimulation();
 
-    this.players = new Map(); // socketId → { id, tileX, tileY, direction }
+    this._agents     = new Map();  // agentId → { socketId }
+    this._spectators = new Set();  // socketId[]
 
     this.io.on('connection', socket => this._onConnect(socket));
-    console.log('[GameServer] Socket.io ready');
+
+    setInterval(() => this._broadcastWorldState(), RENDER_INTERVAL_MS);
+    console.log('[GameServer] server-authoritative mode ready');
   }
 
   _onConnect(socket) {
-    console.log(`[GameServer] player connected: ${socket.id}`);
+    let role    = null;
+    let agentId = null;
 
-    // Register new player
-    this.players.set(socket.id, {
-      id: socket.id,
-      tileX: 40,
-      tileY: 35,
-      direction: 'down',
+    socket.on('spectator:register', () => {
+      role = 'spectator';
+      this._spectators.add(socket.id);
+      console.log(`[GameServer] spectator connected: ${socket.id}`);
+      socket.emit('server:worldState', this._sim.buildRendererState());
     });
 
-    // Placeholder event handlers — filled in when multiplayer is implemented
-    socket.on('player:action', (_data) => {
-      // TODO: validate and broadcast player actions
+    socket.on('agent:register', ({ agentId: id }) => {
+      role    = 'agent';
+      agentId = id;
+      this._agents.set(agentId, { socketId: socket.id });
+      this._sim.registerPlayer(agentId);
+      const obs = this._sim.buildObservation(agentId);
+      socket.emit('server:observation', obs);
+    });
+
+    socket.on('agent:action', ({ action }) => {
+      if (role !== 'agent' || !agentId) return;
+      this._sim.processAction(agentId, action);
+      const obs = this._sim.buildObservation(agentId);
+      if (obs) socket.emit('server:observation', obs);
     });
 
     socket.on('disconnect', () => {
-      console.log(`[GameServer] player disconnected: ${socket.id}`);
-      this.players.delete(socket.id);
+      if (role === 'spectator') {
+        this._spectators.delete(socket.id);
+        console.log(`[GameServer] spectator disconnected: ${socket.id}`);
+      } else if (role === 'agent' && agentId) {
+        this._sim.removePlayer(agentId);
+        this._agents.delete(agentId);
+        console.log(`[GameServer] agent disconnected: ${agentId}`);
+      }
     });
+  }
+
+  _broadcastWorldState() {
+    if (this._spectators.size === 0) return;
+    const state = this._sim.buildRendererState();
+    for (const sid of this._spectators) {
+      this.io.to(sid).emit('server:worldState', state);
+    }
   }
 }
