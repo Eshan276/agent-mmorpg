@@ -1,0 +1,55 @@
+Movement
+
+Move up (W / Arrow Up)
+Move down (S / Arrow Down)
+Move left (A / Arrow Left)
+Move right (D / Arrow Right)
+World interaction (E / Space / Enter)
+
+Pick up world item (facing or walking over it)
+Open chest (facing, unopened)
+Inspect empty chest (facing, already opened)
+Talk to non-merchant NPC (shows dialog)
+Open merchant shop (facing merchant NPC)
+Read sign
+Harvest tree (facing, with axe in inventory)
+Harvest rock node (facing, with pickaxe in inventory)
+Harvest bush (facing, no tool needed)
+Attempt harvest without required tool (shows "Need a axe/pickaxe" message)
+Attempt interact with 0 energy (blocked, energy bar flashes)
+Inventory (I key)
+
+Open inventory panel
+Close inventory panel
+Hover slot → see item name + description tooltip
+Click usable slot (potion / food) → use item, restore HP/energy, consume one
+Click non-usable slot (weapon, resource) → no effect
+Shop (open by talking to merchant)
+
+Switch to Buy tab
+Switch to Sell tab
+Buy item (deducts gold coins, adds item to inventory)
+Attempt buy with insufficient gold (shows error feedback)
+Sell inventory item (adds gold coins, removes item from inventory)
+Close shop (✕ button or Escape)
+Stats panel (☰ hamburger, top-right)
+
+Open stats panel (slides in)
+Close stats panel (slides out)
+Passive / automatic
+
+Walk onto item tile → auto-pickup
+Enter hostile zone (Forest of Whispers / Sunken Sands Desert / Mountain Pass) → HP and energy drain every 20s
+Stay in safe zone (Shinobi Village / Crystal Lake) → HP and energy regen every 20s
+Passive hunger → -1 HP every 2 minutes regardless of zone
+HP reaches 0 → die (sprite flashes, death overlay appears)
+Respawn (Space or E while dead) → full HP/energy restore, teleport to spawn
+System / meta
+
+Game loads → spawn at Shinobi Village with empty inventory
+Enter new zone → zone banner fades in at top, zone label updates bottom-right
+Pick up item / open chest → inventory updated, panel reflects immediately
+Harvest node depleted → sprite fades out, respawns after 15s (bush) / 30s (tree) / 60s (rock)
+World items respawn continuously up to cap of 20 on the map
+window.performAction('move_right') etc. — bot/devtools API works for all move + interact actions
+window.getGameState() — read current player tile, direction, zone from console
