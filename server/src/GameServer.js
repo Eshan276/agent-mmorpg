@@ -1,5 +1,6 @@
 import { Server }          from 'socket.io';
 import { WorldSimulation } from './WorldSimulation.js';
+import { logAction, flush } from './AxiomLogger.js';
 
 const RENDER_INTERVAL_MS = 200;
 
@@ -14,6 +15,8 @@ export class GameServer {
     this.io.on('connection', socket => this._onConnect(socket));
 
     setInterval(() => this._broadcastWorldState(), RENDER_INTERVAL_MS);
+    process.on('SIGTERM', () => flush().finally(() => process.exit(0)));
+    process.on('SIGINT',  () => flush().finally(() => process.exit(0)));
     console.log('[GameServer] server-authoritative mode ready');
   }
 
@@ -41,7 +44,18 @@ export class GameServer {
       if (role !== 'agent' || !agentId) return;
       this._sim.processAction(agentId, action);
       const obs = this._sim.buildObservation(agentId);
-      if (obs) socket.emit('server:observation', obs);
+      if (obs) {
+        socket.emit('server:observation', obs);
+        logAction(agentId, action, {
+          tileX:    obs.player.tileX,
+          tileY:    obs.player.tileY,
+          hp:       obs.player.hp,
+          energy:   obs.player.energy,
+          gold:     obs.gold,
+          zone:     obs.player.zone,
+          events:   obs.recentEvents?.join(' | ') ?? '',
+        });
+      }
     });
 
     socket.on('disconnect', () => {

@@ -7,15 +7,271 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; background: #0a0a1a; overflow: hidden; }
     canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+
     #hud {
       position: fixed; top: 10px; left: 10px; z-index: 10;
       color: #aaffaa; font: 12px monospace;
       background: rgba(0,0,0,0.6); padding: 8px 12px; border-radius: 4px;
     }
+
+    /* ── Hamburger ── */
+    #menu-btn {
+      position: fixed; top: 10px; right: 10px; z-index: 200;
+      width: 34px; height: 34px;
+      background: rgba(0,0,0,0.7);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px; cursor: pointer;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 5px;
+      transition: background 0.15s;
+    }
+    #menu-btn:hover { background: rgba(255,255,255,0.12); }
+    #menu-btn span {
+      display: block; width: 18px; height: 2px;
+      background: #aaffaa; border-radius: 1px; transition: all 0.2s;
+    }
+    #menu-btn.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    #menu-btn.open span:nth-child(2) { opacity: 0; }
+    #menu-btn.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+    /* ── Panel ── */
+    #panel {
+      position: fixed; top: 0; right: -320px; width: 300px; height: 100%;
+      z-index: 150;
+      background: rgba(8, 10, 20, 0.97);
+      border-left: 1px solid rgba(255,255,255,0.08);
+      transition: right 0.25s cubic-bezier(0.4,0,0.2,1);
+      display: flex; flex-direction: column;
+      font-family: monospace; overflow: hidden;
+    }
+    #panel.open { right: 0; }
+
+    #panel-header {
+      padding: 14px 16px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      flex-shrink: 0;
+    }
+    #panel-header h2 {
+      font-size: 13px; color: #aaffaa; letter-spacing: 1px; text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    #world-stats { display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+    .wstat { font-size: 10px; color: #667; }
+    .wstat span { color: #aaa; }
+
+    /* ── Tabs ── */
+    #tabs {
+      display: flex; gap: 0;
+      border-top: 1px solid rgba(255,255,255,0.07);
+    }
+    .tab-btn {
+      flex: 1; padding: 8px 0; font: 11px monospace;
+      color: #556; background: none; border: none;
+      cursor: pointer; transition: color 0.15s, border-bottom 0.15s;
+      border-bottom: 2px solid transparent;
+      letter-spacing: 0.5px;
+    }
+    .tab-btn:hover { color: #aaa; }
+    .tab-btn.active { color: #aaffaa; border-bottom-color: #aaffaa; }
+
+    /* ── Tab panes ── */
+    .tab-pane { display: none; flex: 1; overflow-y: auto; padding: 10px 12px; }
+    .tab-pane.active { display: flex; flex-direction: column; }
+    .tab-pane::-webkit-scrollbar { width: 4px; }
+    .tab-pane::-webkit-scrollbar-track { background: transparent; }
+    .tab-pane::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+    /* ── Agent cards ── */
+    .no-agents { color: #444; font-size: 11px; margin-top: 20px; text-align: center; }
+    .agent-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 8px; padding: 10px 12px; margin-bottom: 10px;
+    }
+    .agent-card.dead { opacity: 0.45; }
+    .ac-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .ac-name { font-size: 12px; font-weight: bold; color: #fff; display: flex; align-items: center; gap: 6px; }
+    .ac-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .ac-zone { font-size: 9px; color: #6688bb; }
+    .ac-bars { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+    .ac-bar-row { display: flex; align-items: center; gap: 6px; }
+    .ac-bar-label { font-size: 9px; color: #556; width: 16px; flex-shrink: 0; }
+    .ac-bar-track { flex: 1; height: 5px; background: rgba(255,255,255,0.07); border-radius: 3px; overflow: hidden; }
+    .ac-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+    .ac-bar-fill.hp { background: linear-gradient(90deg, #c0392b, #e74c3c); }
+    .ac-bar-fill.en { background: linear-gradient(90deg, #2980b9, #3498db); }
+    .ac-bar-val { font-size: 9px; color: #666; width: 38px; text-align: right; flex-shrink: 0; }
+    .ac-row { display: flex; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+    .ac-stat { font-size: 10px; }
+    .ac-stat .label { color: #556; }
+    .ac-stat .val { color: #ccc; }
+    .ac-stat .val.gold { color: #ffd700; }
+    .ac-stat .val.alive { color: #4caf50; }
+    .ac-stat .val.dead { color: #e74c3c; }
+    .ac-inv-label { font-size: 9px; color: #445; margin-bottom: 3px; }
+    .ac-inv { display: flex; flex-wrap: wrap; gap: 3px; }
+    .ac-inv-item {
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 3px; padding: 1px 5px; font-size: 9px; color: #bbb;
+    }
+    .ac-inv-empty { font-size: 9px; color: #333; font-style: italic; }
+
+    /* ── Logs tab ── */
+    #logs-controls {
+      display: flex; gap: 6px; margin-bottom: 10px; flex-shrink: 0;
+    }
+    #logs-search {
+      flex: 1; background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1); border-radius: 5px;
+      color: #ccc; font: 10px monospace; padding: 5px 8px; outline: none;
+    }
+    #logs-search::placeholder { color: #445; }
+    #logs-search:focus { border-color: rgba(170,255,170,0.3); }
+    #logs-refresh {
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 5px; color: #aaa; font: 10px monospace;
+      padding: 5px 8px; cursor: pointer; flex-shrink: 0;
+    }
+    #logs-refresh:hover { background: rgba(255,255,255,0.12); }
+
+    #logs-list { flex: 1; }
+    .log-row {
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      padding: 5px 0; font-size: 9px; line-height: 1.5;
+    }
+    .log-row:last-child { border-bottom: none; }
+    .log-time { color: #445; }
+    .log-agent { color: #6688bb; margin: 0 4px; }
+    .log-action { color: #aaffaa; font-weight: bold; margin-right: 4px; }
+    .log-pos { color: #667; }
+    .log-hp { color: #e74c3c; margin-left: 4px; }
+    .log-gold { color: #ffd700; margin-left: 4px; }
+    .log-events { color: #888; display: block; padding-left: 8px; font-size: 8px; margin-top: 1px; }
+    .logs-empty { color: #444; font-size: 11px; margin-top: 20px; text-align: center; }
+    .logs-error { color: #c0392b; font-size: 10px; margin-top: 10px; text-align: center; }
+    .logs-loading { color: #556; font-size: 10px; margin-top: 20px; text-align: center; }
+
+    /* ── Tooltip ── */
+    #tooltip {
+      display: none; position: fixed; z-index: 100; width: 200px;
+      background: rgba(10,10,20,0.95); border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px; padding: 10px 12px; font-family: monospace;
+      font-size: 11px; color: #ddd; pointer-events: none;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    }
+    .tt-name { font-size: 13px; font-weight: bold; color: #fff; margin-bottom: 2px; }
+    .tt-zone { font-size: 10px; color: #88aaff; margin-bottom: 8px; }
+    .tt-row  { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+    .tt-label{ font-size: 10px; color: #888; width: 18px; flex-shrink: 0; }
+    .tt-bar  { flex: 1; height: 5px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
+    .tt-fill { height: 100%; border-radius: 3px; }
+    .tt-fill.hp { background: #e05555; }
+    .tt-fill.en { background: #55aaff; }
+    .tt-val  { font-size: 10px; color: #aaa; width: 44px; text-align: right; flex-shrink: 0; }
+    .tt-gold { color: #ffd700; margin: 6px 0 4px; font-size: 11px; }
+    .tt-inv  { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .inv-item{ background: rgba(255,255,255,0.08); border-radius: 3px; padding: 1px 5px; font-size: 10px; color: #ccc; }
+    .inv-empty{ font-size: 10px; color: #555; font-style: italic; }
   </style>
 </head>
 <body>
+  <button id="menu-btn" aria-label="Toggle panel">
+    <span></span><span></span><span></span>
+  </button>
+
   <div id="hud">👁 World View — <span id="count">0</span> agent(s) online</div>
+
+  <div id="panel">
+    <div id="panel-header">
+      <h2>World Status</h2>
+      <div id="world-stats">
+        <div class="wstat">Agents <span id="ws-agents">0</span></div>
+        <div class="wstat">Nodes <span id="ws-nodes">—</span></div>
+        <div class="wstat">Items <span id="ws-items">—</span></div>
+      </div>
+      <div id="tabs">
+        <button class="tab-btn active" data-tab="agents">Agents</button>
+        <button class="tab-btn"        data-tab="logs">Logs</button>
+      </div>
+    </div>
+
+    <div id="tab-agents" class="tab-pane active">
+      <div class="no-agents" id="no-agents-msg">No agents online</div>
+    </div>
+
+    <div id="tab-logs" class="tab-pane">
+      <div id="logs-controls">
+        <input id="logs-search" type="text" placeholder="filter by agent_id…" />
+        <button id="logs-refresh">↻</button>
+      </div>
+      <div id="logs-list"><div class="logs-empty">Open panel and click ↻ to load logs</div></div>
+    </div>
+  </div>
+
+  <div id="tooltip"></div>
   <script type="module" src="/src/world.js"></script>
+  <script>
+    // ── Panel open/close ──
+    const btn   = document.getElementById('menu-btn');
+    const panel = document.getElementById('panel');
+    btn.addEventListener('click', () => {
+      const open = panel.classList.toggle('open');
+      btn.classList.toggle('open', open);
+    });
+
+    // ── Tabs ──
+    document.getElementById('tabs').addEventListener('click', e => {
+      const tb = e.target.closest('.tab-btn');
+      if (!tb) return;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      tb.classList.add('active');
+      document.getElementById('tab-' + tb.dataset.tab).classList.add('active');
+      if (tb.dataset.tab === 'logs') fetchLogs();
+    });
+
+    // ── Logs ──
+    async function fetchLogs() {
+      const list    = document.getElementById('logs-list');
+      const agentId = document.getElementById('logs-search').value.trim();
+      list.innerHTML = '<div class="logs-loading">Loading…</div>';
+
+      try {
+        const qs  = agentId ? `?agentId=${encodeURIComponent(agentId)}` : '';
+        const res = await fetch(`/api/logs${qs}`);
+        const rows = await res.json();
+
+        if (!res.ok) {
+          list.innerHTML = `<div class="logs-error">${rows.error ?? 'Error fetching logs'}</div>`;
+          return;
+        }
+        if (!rows.length) {
+          list.innerHTML = '<div class="logs-empty">No logs found</div>';
+          return;
+        }
+
+        list.innerHTML = rows.map(r => {
+          const t = r._time ? new Date(r._time).toLocaleTimeString() : '';
+          const events = r.events ? `<span class="log-events">${r.events}</span>` : '';
+          return `<div class="log-row">
+            <span class="log-time">${t}</span>
+            <span class="log-agent">${r.agentId ?? ''}</span>
+            <span class="log-action">${r.action ?? ''}</span>
+            <span class="log-pos">(${r.tileX ?? '?'},${r.tileY ?? '?'})</span>
+            <span class="log-hp">hp:${r.hp ?? '?'}</span>
+            <span class="log-gold">g:${r.gold ?? '?'}</span>
+            ${events}
+          </div>`;
+        }).join('');
+      } catch (err) {
+        list.innerHTML = `<div class="logs-error">${err.message}</div>`;
+      }
+    }
+
+    document.getElementById('logs-refresh').addEventListener('click', fetchLogs);
+    document.getElementById('logs-search').addEventListener('keydown', e => {
+      if (e.key === 'Enter') fetchLogs();
+    });
+  </script>
 </body>
 </html>

@@ -4,7 +4,12 @@ import { TilemapBuilder } from './world/TilemapBuilder.js';
 
 const TILE     = 16;
 const HOUSE_COLS = 33;
-const countEl  = document.getElementById('count');
+const countEl   = document.getElementById('count');
+const wsAgents  = document.getElementById('ws-agents');
+const wsNodes   = document.getElementById('ws-nodes');
+const wsItems   = document.getElementById('ws-items');
+const panelBody = document.getElementById('panel-body');
+const noAgentsMsg = document.getElementById('no-agents-msg');
 
 // Harvest node frame / depth config (mirrors GameScene)
 const NODE_TEXTURES = { tree: 'ts_nature', rock_node: 'ts_nature', bush: 'ts_nature' };
@@ -121,6 +126,9 @@ class WorldScene extends Phaser.Scene {
 
     console.log('[WorldScene] create() done — static objects:', staticObjs.length, 'nodes:', harvestNodes.length);
 
+    // Tooltip (HTML overlay — lives outside Phaser canvas)
+    this._tooltip = document.getElementById('tooltip');
+
     // Camera
     const { width, height } = mapData;
     this.cameras.main.setBounds(0, 0, width*TILE, height*TILE);
@@ -134,6 +142,18 @@ class WorldScene extends Phaser.Scene {
         this.cameras.main.scrollY -= ptr.velocity.y / this.cameras.main.zoom / 10;
       }
     });
+
+    // Hover tooltip via native DOM (fires everywhere on canvas, not just game objects)
+    this.game.canvas.addEventListener('mousemove', e => {
+      const rect = this.game.canvas.getBoundingClientRect();
+      const scaleX = this.game.canvas.width  / rect.width;
+      const scaleY = this.game.canvas.height / rect.height;
+      const cx = (e.clientX - rect.left) * scaleX;
+      const cy = (e.clientY - rect.top)  * scaleY;
+      const world = this.cameras.main.getWorldPoint(cx, cy);
+      this._checkHoverWorld(world.x, world.y, e.clientX, e.clientY);
+    });
+    this.game.canvas.addEventListener('mouseleave', () => this._hideTooltip());
     this.input.on('wheel', (_ptr, _objs, _dx, dy) => {
       const z = Phaser.Math.Clamp(this.cameras.main.zoom - dy * 0.001, 0.5, 8);
       this.cameras.main.setZoom(z);
@@ -293,6 +313,7 @@ class WorldScene extends Phaser.Scene {
       if (!seen.has(id)) this._removeAgent(id);
     }
     if (countEl) countEl.textContent = players.length;
+    this._updatePanel(players, worldItems, harvestNodes);
 
     // Pan camera to first agent when it first appears
     if (hadNone && players.length > 0) {
@@ -303,10 +324,76 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
+  // ── Side panel ──────────────────────────────────────────────────────────
+
+  _updatePanel(players, worldItems, harvestNodes) {
+    if (wsAgents) wsAgents.textContent = players.length;
+    if (wsNodes)  wsNodes.textContent  = harvestNodes ? `${harvestNodes.filter(n => !n.depleted).length}/${harvestNodes.length}` : '—';
+    if (wsItems)  wsItems.textContent  = worldItems?.length ?? '—';
+
+    if (!panelBody) return;
+    if (noAgentsMsg) noAgentsMsg.style.display = players.length ? 'none' : 'block';
+
+    for (const p of players) {
+      const { agentId, hp, maxHp, energy, maxEnergy, gold, zone, alive, inventory = [] } = p;
+      const hpPct = Math.round(hp / maxHp * 100);
+      const enPct = Math.round(energy / maxEnergy * 100);
+      const tint  = this._remotes.get(agentId)?.tint ?? '#aaa';
+
+      const invHtml = inventory.length
+        ? inventory.map(i => `<span class="ac-inv-item">${i.name ?? i.id}${i.qty > 1 ? ` ×${i.qty}` : ''}</span>`).join('')
+        : '<span class="ac-inv-empty">empty</span>';
+
+      const html = `
+        <div class="ac-header">
+          <div class="ac-name">
+            <div class="ac-dot" style="background:${tint}"></div>
+            ${agentId}
+          </div>
+          <div class="ac-zone">${zone ?? ''}</div>
+        </div>
+        <div class="ac-bars">
+          <div class="ac-bar-row">
+            <span class="ac-bar-label">HP</span>
+            <div class="ac-bar-track"><div class="ac-bar-fill hp" style="width:${hpPct}%"></div></div>
+            <span class="ac-bar-val">${hp}/${maxHp}</span>
+          </div>
+          <div class="ac-bar-row">
+            <span class="ac-bar-label">EN</span>
+            <div class="ac-bar-track"><div class="ac-bar-fill en" style="width:${enPct}%"></div></div>
+            <span class="ac-bar-val">${energy}/${maxEnergy}</span>
+          </div>
+        </div>
+        <div class="ac-row">
+          <div class="ac-stat"><span class="label">Gold </span><span class="val gold">⬡ ${gold}</span></div>
+          <div class="ac-stat"><span class="label">Status </span><span class="val ${alive ? 'alive' : 'dead'}">${alive ? 'alive' : 'dead'}</span></div>
+        </div>
+        <div class="ac-inv-label">Inventory</div>
+        <div class="ac-inv">${invHtml}</div>
+      `;
+
+      let card = panelBody.querySelector(`[data-agent="${agentId}"]`);
+      if (!card) {
+        card = document.createElement('div');
+        card.className = 'agent-card';
+        card.dataset.agent = agentId;
+        panelBody.appendChild(card);
+      }
+      card.className = `agent-card${alive ? '' : ' dead'}`;
+      card.innerHTML = html;
+    }
+
+    // Remove cards for agents that left
+    const activeIds = new Set(players.map(p => p.agentId));
+    for (const card of panelBody.querySelectorAll('.agent-card')) {
+      if (!activeIds.has(card.dataset.agent)) card.remove();
+    }
+  }
+
   // ── Agent sprites ───────────────────────────────────────────────────────
 
-  _upsertAgent({ agentId, tileX, tileY, direction = 'down', hp, maxHp, alive }) {
-    console.log('[WorldView] upsertAgent', agentId, tileX, tileY, alive);
+  _upsertAgent(p) {
+    const { agentId, tileX, tileY, direction = 'down', hp, maxHp, energy, maxEnergy, gold, alive, inventory = [] } = p;
     const px    = tileX * TILE + TILE/2;
     const py    = tileY * TILE + TILE/2;
     const alpha = alive ? 1 : 0.3;
@@ -320,10 +407,13 @@ class WorldScene extends Phaser.Scene {
       rp.sprite.play(`walk_${direction}`, true).setAlpha(alpha);
       rp.nameTag.setPosition(px, py - TILE - 2);
       rp.hpTag.setText(`${hp}/${maxHp}`).setPosition(px, py - TILE - 10);
+      // Store latest data for tooltip
+      rp.data = p;
     } else {
-      const tint   = TINTS[_tintIdx++ % TINTS.length];
+      const tintVal = TINTS[_tintIdx++ % TINTS.length];
+      const tintCss = '#' + tintVal.toString(16).padStart(6, '0');
       const sprite = this.add.sprite(px, py, 'player', 1)
-        .setDepth(50).setTint(tint).setAlpha(alpha);
+        .setDepth(50).setTint(tintVal).setAlpha(alpha);
       sprite.play('idle_down');
 
       const nameTag = this.add.text(px, py - TILE - 2, agentId.slice(-6), {
@@ -336,8 +426,64 @@ class WorldScene extends Phaser.Scene {
         color: '#ff8888', stroke: '#000000', strokeThickness: 1,
       }).setOrigin(0.5, 1).setDepth(55);
 
-      this._remotes.set(agentId, { sprite, nameTag, hpTag });
+      this._remotes.set(agentId, { sprite, nameTag, hpTag, tint: tintCss, data: p });
     }
+  }
+
+  // ── Hover tooltip ────────────────────────────────────────────────────────
+
+  _checkHoverWorld(wx, wy, screenX, screenY) {
+    const hoverRadius = TILE * 1.5;
+
+    let closest = null, closestDist = Infinity;
+    for (const [, rp] of this._remotes) {
+      const d = Math.hypot(wx - rp.sprite.x, wy - rp.sprite.y);
+      if (d < hoverRadius && d < closestDist) { closest = rp; closestDist = d; }
+    }
+
+    if (closest) {
+      this._showTooltip(closest.data, screenX, screenY);
+    } else {
+      this._hideTooltip();
+    }
+  }
+
+  _showTooltip(p, screenX, screenY) {
+    if (!this._tooltip) return;
+    const { agentId, hp, maxHp, energy, maxEnergy, gold, zone, alive, inventory = [] } = p;
+
+    const hpPct  = Math.round(hp  / maxHp  * 100);
+    const enPct  = Math.round(energy / maxEnergy * 100);
+    const invHtml = inventory.length
+      ? inventory.map(i => `<span class="inv-item">${i.name}${i.qty > 1 ? ` ×${i.qty}` : ''}</span>`).join('')
+      : '<span class="inv-empty">empty</span>';
+
+    this._tooltip.innerHTML = `
+      <div class="tt-name">${agentId}${alive ? '' : ' 💀'}</div>
+      <div class="tt-zone">${zone}</div>
+      <div class="tt-row"><span class="tt-label">HP</span>
+        <div class="tt-bar"><div class="tt-fill hp" style="width:${hpPct}%"></div></div>
+        <span class="tt-val">${hp}/${maxHp}</span>
+      </div>
+      <div class="tt-row"><span class="tt-label">EN</span>
+        <div class="tt-bar"><div class="tt-fill en" style="width:${enPct}%"></div></div>
+        <span class="tt-val">${energy}/${maxEnergy}</span>
+      </div>
+      <div class="tt-gold">⬡ ${gold} gold</div>
+      <div class="tt-inv">${invHtml}</div>
+    `;
+
+    const margin = 12;
+    const tw = 200, th = 160;
+    const lx = screenX + margin + tw > window.innerWidth  ? screenX - tw - margin : screenX + margin;
+    const ly = screenY + margin + th > window.innerHeight ? screenY - th - margin : screenY + margin;
+    this._tooltip.style.left    = lx + 'px';
+    this._tooltip.style.top     = ly + 'px';
+    this._tooltip.style.display = 'block';
+  }
+
+  _hideTooltip() {
+    if (this._tooltip) this._tooltip.style.display = 'none';
   }
 
   _removeAgent(agentId) {

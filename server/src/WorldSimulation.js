@@ -165,6 +165,13 @@ export class WorldSimulation {
 
     if (action === 'interact') return this._processInteract(player);
 
+    if (action === 'eat') return this._processEat(player);
+
+    if (action.startsWith('buy:')) {
+      const itemId = action.slice(4);
+      return this._processBuy(player, itemId);
+    }
+
     // 'wait' — valid no-op
     return { ok: true };
   }
@@ -287,6 +294,48 @@ export class WorldSimulation {
     return { ok: true };
   }
 
+  _processEat(player) {
+    const FOOD_TYPES = new Set(['food', 'potion']);
+    const slot = player.inventory.find(s => FOOD_TYPES.has(ITEM_DEFS[s.id]?.type));
+    if (!slot) {
+      player.pushEvent('Nothing to eat!');
+      return { ok: false };
+    }
+    const def = ITEM_DEFS[slot.id];
+    player.removeItem(slot.id, 1);
+    if (def.hpRestore) player.hp = Math.min(player.maxHp, player.hp + def.hpRestore);
+    if (def.enRestore) player.energy = Math.min(player.maxEnergy, player.energy + def.enRestore);
+    player.pushEvent(`Ate ${def.name} → +${def.hpRestore ?? 0} HP, +${def.enRestore ?? 0} EN`);
+    return { ok: true };
+  }
+
+  _processBuy(player, itemId) {
+    const price = SHOP_BUY_PRICES[itemId];
+    if (!price) {
+      player.pushEvent(`[MERCHANT] Cannot buy: ${itemId}`);
+      return { ok: false };
+    }
+    // Must be adjacent to (facing) the merchant
+    const [fdx, fdy] = DIR_OFFSETS[player.direction];
+    const fx = player.tileX + fdx, fy = player.tileY + fdy;
+    const obj = this._staticObjects.find(o => o.tileX === fx && o.tileY === fy && o.id === 'merchant');
+    if (!obj) {
+      player.pushEvent(`[MERCHANT] Not facing merchant`);
+      return { ok: false };
+    }
+    if (player.gold < price) {
+      player.pushEvent(`[MERCHANT] Need ${price}g for ${itemId}, have ${player.gold}g`);
+      return { ok: false };
+    }
+    if (!player.addItem(itemId)) {
+      player.pushEvent(`[MERCHANT] Inventory full`);
+      return { ok: false };
+    }
+    player.gold -= price;
+    player.pushEvent(`Bought ${ITEM_DEFS[itemId]?.name ?? itemId} for ${price}g (gold: ${player.gold})`);
+    return { ok: true };
+  }
+
   // ── Observation & renderer state ───────────────────────────────────────────
 
   buildObservation(agentId) {
@@ -377,8 +426,12 @@ export class WorldSimulation {
         direction: p.direction,
         hp:        p.hp,
         maxHp:     p.maxHp,
+        energy:    p.energy,
+        maxEnergy: p.maxEnergy,
+        gold:      p.gold,
         zone:      p.zone,
         alive:     p.alive,
+        inventory: p.inventory.map(s => ({ id: s.id, name: s.name, qty: s.qty })),
       })),
       worldItems: [...this._worldItems.values()].map(wi => ({
         id: wi.itemId, tileX: wi.tileX, tileY: wi.tileY,
@@ -412,29 +465,29 @@ export class WorldSimulation {
   // ── Ticks ──────────────────────────────────────────────────────────────────
 
   _startTicks() {
-    // Zone-based stat tick every 20 seconds
+    // Zone-based stat tick every 20 seconds: hostile drains HP+energy, safe only restores energy
     setInterval(() => {
       for (const player of this._players.values()) {
         if (!player.alive) continue;
         if (HOSTILE_ZONES.has(player.zone)) {
-          player.hp     = Math.max(0, player.hp - 1);
-          player.energy = Math.max(0, player.energy - 1);
+          player.hp     = Math.max(0, player.hp - 2);
+          player.energy = Math.max(0, player.energy - 2);
           if (player.hp === 0) this._killPlayer(player);
         } else {
-          player.hp     = Math.min(player.maxHp,    player.hp + 1);
+          // Safe zone: energy recovers, but HP does NOT regen — must eat to heal
           player.energy = Math.min(player.maxEnergy, player.energy + 2);
         }
       }
     }, 20000);
 
-    // Passive hunger drain every 2 minutes
+    // Hunger drain every 30 seconds regardless of zone
     setInterval(() => {
       for (const player of this._players.values()) {
         if (!player.alive) continue;
-        player.hp = Math.max(0, player.hp - 1);
+        player.hp = Math.max(0, player.hp - 3);
         if (player.hp === 0) this._killPlayer(player);
       }
-    }, 120000);
+    }, 30000);
 
     // Harvest node respawn check every 5 seconds
     setInterval(() => {
