@@ -103,6 +103,8 @@ class WorldScene extends Phaser.Scene {
     this._harvestSprites   = new Map();
     this._worldItemSprites = new Map();
     this._remotes          = new Map();
+    this._prevAlive        = new Map(); // agentId → bool, for death/respawn effects
+    this._targetGraphics   = this.add.graphics().setDepth(100);
 
     // Build tilemap layers
     new TilemapBuilder(this).build(mapData);
@@ -263,9 +265,29 @@ class WorldScene extends Phaser.Scene {
   }
 
   _syncHarvestNodes(serverNodes) {
+    const serverKeys = new Set(serverNodes.map(n => n.key));
+
+    // Remove sprites for nodes no longer on server
+    for (const [key, spr] of this._harvestSprites) {
+      if (!serverKeys.has(key)) {
+        spr.destroy();
+        this._harvestSprites.delete(key);
+      }
+    }
+
     for (const node of serverNodes) {
-      const spr = this._harvestSprites.get(node.key);
-      if (!spr) continue;
+      let spr = this._harvestSprites.get(node.key);
+      if (!spr) {
+        // Dynamically spawned node — create sprite now
+        const texture = NODE_TEXTURES[node.nodeType] ?? 'ts_nature';
+        const frame   = NODE_FRAMES[node.nodeType]   ?? 96;
+        const depth   = NODE_DEPTHS[node.nodeType]   ?? 13;
+        const px = node.tileX * TILE;
+        const py = node.tileY * TILE;
+        spr = this.add.image(px, py, texture, frame)
+          .setOrigin(0, 0).setDepth(depth);
+        this._harvestSprites.set(node.key, spr);
+      }
       spr.setAlpha(node.depleted ? 0.15 : 1);
     }
   }
@@ -296,7 +318,7 @@ class WorldScene extends Phaser.Scene {
     socket.on('disconnect', reason => console.log('[WorldView] disconnected:', reason));
   }
 
-  _onWorldState({ players = [], worldItems = [], harvestNodes = [] }) {
+  _onWorldState({ players = [], worldItems = [], harvestNodes = [], agentTargets = [] }) {
     // Sync dynamic layers
     this._syncWorldItems(worldItems);
     this._syncHarvestNodes(harvestNodes);
@@ -314,6 +336,7 @@ class WorldScene extends Phaser.Scene {
     }
     if (countEl) countEl.textContent = players.length;
     this._updatePanel(players, worldItems, harvestNodes);
+    this._drawTargetLines(players, agentTargets);
 
     // Pan camera to first agent when it first appears
     if (hadNone && players.length > 0) {
@@ -388,6 +411,31 @@ class WorldScene extends Phaser.Scene {
     for (const card of panelBody.querySelectorAll('.agent-card')) {
       if (!activeIds.has(card.dataset.agent)) card.remove();
     }
+
+    // ── Scores tab ──────────────────────────────────────────────────────────
+    const scoresList = document.getElementById('scores-list');
+    if (scoresList) {
+      if (!players.length) {
+        scoresList.innerHTML = '<div class="scores-empty">No agents online</div>';
+      } else {
+        const sorted = [...players].sort((a, b) => (b.gold ?? 0) - (a.gold ?? 0));
+        const rankLabels = ['🥇', '🥈', '🥉'];
+        const rankClasses = ['gold', 'silver', 'bronze'];
+        scoresList.innerHTML = sorted.map((p, i) => {
+          const tint = this._remotes.get(p.agentId)?.tint ?? '#aaa';
+          const rank = i < 3 ? `<span class="score-rank ${rankClasses[i]}">${rankLabels[i]}</span>` : `<span class="score-rank">${i+1}</span>`;
+          const shortId = p.agentId.slice(-8);
+          return `<div class="score-row">
+            ${rank}
+            <div class="score-dot" style="background:${tint}"></div>
+            <div class="score-name">${shortId}</div>
+            <div class="score-zone">${p.zone ?? ''}</div>
+            <div class="score-gold">⬡${p.gold ?? 0}</div>
+            <div class="score-harvests">🌿${p.totalHarvests ?? 0}</div>
+          </div>`;
+        }).join('');
+      }
+    }
   }
 
   // ── Agent sprites ───────────────────────────────────────────────────────
@@ -398,8 +446,34 @@ class WorldScene extends Phaser.Scene {
     const py    = tileY * TILE + TILE/2;
     const alpha = alive ? 1 : 0.3;
 
+    // Detect alive transitions for visual effects
+    const wasAlive = this._prevAlive.get(agentId);
+    this._prevAlive.set(agentId, alive);
+
     if (this._remotes.has(agentId)) {
       const rp = this._remotes.get(agentId);
+
+      // Death flash
+      if (wasAlive === true && !alive) {
+        rp.sprite.setTintFill(0xff2222);
+        this.time.delayedCall(500, () => {
+          if (rp.sprite?.active) rp.sprite.clearTint();
+          const rp2 = this._remotes.get(agentId);
+          if (rp2) rp2.sprite.setTint(rp2._tintVal ?? 0xffffff);
+        });
+        this._floatText(px, py, '💀 DEAD', '#ff4444', 2000);
+      }
+      // Respawn flash
+      if (wasAlive === false && alive) {
+        rp.sprite.setTintFill(0xffffff);
+        this.time.delayedCall(400, () => {
+          if (rp.sprite?.active) rp.sprite.clearTint();
+          const rp2 = this._remotes.get(agentId);
+          if (rp2) rp2.sprite.setTint(rp2._tintVal ?? 0xffffff);
+        });
+        this._floatText(px, py, '✨ RESPAWNED', '#aaffaa', 2000);
+      }
+
       this.tweens.add({
         targets: rp.sprite, x: px, y: py, duration: 130, ease: 'Linear',
         onComplete: () => rp.sprite.play(`idle_${direction}`, true),
@@ -415,6 +489,7 @@ class WorldScene extends Phaser.Scene {
       const sprite = this.add.sprite(px, py, 'player', 1)
         .setDepth(50).setTint(tintVal).setAlpha(alpha);
       sprite.play('idle_down');
+      this._prevAlive.set(agentId, alive);
 
       const nameTag = this.add.text(px, py - TILE - 2, agentId.slice(-6), {
         fontSize: '5px', fontFamily: 'monospace',
@@ -426,7 +501,7 @@ class WorldScene extends Phaser.Scene {
         color: '#ff8888', stroke: '#000000', strokeThickness: 1,
       }).setOrigin(0.5, 1).setDepth(55);
 
-      this._remotes.set(agentId, { sprite, nameTag, hpTag, tint: tintCss, data: p });
+      this._remotes.set(agentId, { sprite, nameTag, hpTag, tint: tintCss, _tintVal: tintVal, data: p });
     }
   }
 
@@ -486,6 +561,36 @@ class WorldScene extends Phaser.Scene {
     if (this._tooltip) this._tooltip.style.display = 'none';
   }
 
+  _drawTargetLines(players, agentTargets) {
+    const g = this._targetGraphics;
+    g.clear();
+    for (const t of agentTargets) {
+      const rp = this._remotes.get(t.agentId);
+      if (!rp) continue;
+      const ax = rp.sprite.x;
+      const ay = rp.sprite.y;
+      const tx = t.tileX * TILE + TILE / 2;
+      const ty = t.tileY * TILE + TILE / 2;
+      // Dashed yellow line from agent to target
+      g.lineStyle(1, 0xffff00, 0.8);
+      g.beginPath();
+      const steps = 12;
+      for (let i = 0; i < steps; i++) {
+        const fx = ax + (tx - ax) * (i / steps);
+        const fy = ay + (ty - ay) * (i / steps);
+        if (i % 2 === 0) g.moveTo(fx, fy);
+        else g.lineTo(fx, fy);
+      }
+      g.strokePath();
+      // Red X at target tile
+      g.lineStyle(2, 0xff3300, 1);
+      g.beginPath();
+      g.moveTo(tx - 4, ty - 4); g.lineTo(tx + 4, ty + 4);
+      g.moveTo(tx + 4, ty - 4); g.lineTo(tx - 4, ty + 4);
+      g.strokePath();
+    }
+  }
+
   _removeAgent(agentId) {
     const rp = this._remotes.get(agentId);
     if (!rp) return;
@@ -493,6 +598,18 @@ class WorldScene extends Phaser.Scene {
     rp.nameTag.destroy();
     rp.hpTag.destroy();
     this._remotes.delete(agentId);
+    this._prevAlive.delete(agentId);
+  }
+
+  _floatText(x, y, text, color, duration = 1500) {
+    const t = this.add.text(x, y - TILE, text, {
+      fontSize: '6px', fontFamily: 'monospace',
+      color, stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(0.5, 1).setDepth(200).setAlpha(1);
+    this.tweens.add({
+      targets: t, y: y - TILE * 3, alpha: 0, duration, ease: 'Cubic.easeOut',
+      onComplete: () => t.destroy(),
+    });
   }
 }
 

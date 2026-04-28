@@ -49,14 +49,17 @@ export class ServerPlayer {
     this.maxHp        = 100;
     this.energy       = 100;
     this.maxEnergy    = 100;
-    this.gold         = 0;
-    this.alive        = true;
-    this.zone         = 'Shinobi Village';
+    this.gold           = 0;
+    this.alive          = true;
+    this.zone           = 'Shinobi Village';
+    this.totalHarvests  = 0;
     this.lastActionAt = 0;
     this.spawnX       = spawnX;
     this.spawnY       = spawnY;
     // [{id, name, qty, type, toolType|null}]
     this.inventory    = [];
+    this.addItem('axe');
+    this.addItem('pickaxe');
     // ring buffer — cleared after each observation build
     this.recentEvents = [];
   }

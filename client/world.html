@@ -151,6 +151,25 @@
     .logs-error { color: #c0392b; font-size: 10px; margin-top: 10px; text-align: center; }
     .logs-loading { color: #556; font-size: 10px; margin-top: 20px; text-align: center; }
 
+    /* ── Scores tab ── */
+    #scores-list { flex: 1; }
+    .score-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+      font-size: 10px;
+    }
+    .score-row:last-child { border-bottom: none; }
+    .score-rank { color: #556; width: 16px; flex-shrink: 0; font-weight: bold; }
+    .score-rank.gold   { color: #ffd700; }
+    .score-rank.silver { color: #aaa; }
+    .score-rank.bronze { color: #cd7f32; }
+    .score-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .score-name { flex: 1; color: #ccc; font-family: monospace; }
+    .score-zone { color: #88aaff; font-size: 9px; }
+    .score-gold { color: #ffd700; margin-left: 4px; }
+    .score-harvests { color: #aaffaa; margin-left: 4px; font-size: 9px; }
+    .scores-empty { color: #444; font-size: 11px; margin-top: 20px; text-align: center; }
+
     /* ── Tooltip ── */
     #tooltip {
       display: none; position: fixed; z-index: 100; width: 200px;
@@ -191,12 +210,17 @@
       </div>
       <div id="tabs">
         <button class="tab-btn active" data-tab="agents">Agents</button>
+        <button class="tab-btn"        data-tab="scores">Scores</button>
         <button class="tab-btn"        data-tab="logs">Logs</button>
       </div>
     </div>
 
     <div id="tab-agents" class="tab-pane active">
       <div class="no-agents" id="no-agents-msg">No agents online</div>
+    </div>
+
+    <div id="tab-scores" class="tab-pane">
+      <div id="scores-list"><div class="scores-empty">No agents online</div></div>
     </div>
 
     <div id="tab-logs" class="tab-pane">

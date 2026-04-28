@@ -40,6 +40,11 @@ export class GameServer {
       socket.emit('server:observation', obs);
     });
 
+    socket.on('agent:target', ({ tileX, tileY, reason }) => {
+      if (role !== 'agent' || !agentId) return;
+      this._agents.get(agentId).target = { tileX, tileY, reason };
+    });
+
     socket.on('agent:action', ({ action }) => {
       if (role !== 'agent' || !agentId) return;
       this._sim.processAction(agentId, action);
@@ -73,6 +78,10 @@ export class GameServer {
   _broadcastWorldState() {
     if (this._spectators.size === 0) return;
     const state = this._sim.buildRendererState();
+    // Attach agent targets for debug overlay
+    state.agentTargets = [...this._agents.entries()]
+      .filter(([, a]) => a.target)
+      .map(([id, a]) => ({ agentId: id, ...a.target }));
     for (const sid of this._spectators) {
       this.io.to(sid).emit('server:worldState', state);
     }

@@ -9,14 +9,14 @@ const HOSTILE_ZONES = new Set(['Forest of Whispers', 'Sunken Sands Desert', 'Mou
 
 const NODE_CONFIG = {
   tree: {
-    requiredTool: 'axe', maxHp: 3, respawnMs: 30000,
+    requiredTool: 'axe', maxHp: 3, respawnMs: 15000,
     drops: [
       { itemId: 'plank',  qty: [2, 4], chance: 1.0 },
       { itemId: 'branch', qty: [1, 1], chance: 0.6 },
     ],
   },
   rock_node: {
-    requiredTool: 'pickaxe', maxHp: 4, respawnMs: 60000,
+    requiredTool: 'pickaxe', maxHp: 4, respawnMs: 30000,
     drops: [
       { itemId: 'rock',     qty: [1, 3], chance: 1.0 },
       { itemId: 'bar_iron', qty: [1, 1], chance: 0.25 },
@@ -24,7 +24,7 @@ const NODE_CONFIG = {
     ],
   },
   bush: {
-    requiredTool: 'none', maxHp: 1, respawnMs: 15000,
+    requiredTool: 'none', maxHp: 1, respawnMs: 8000,
     drops: [
       { itemId: 'grass', qty: [1, 1], chance: 1.0 },
       { itemId: 'honey', qty: [1, 1], chance: 0.2  },
@@ -40,12 +40,21 @@ const DIR_OFFSETS = {
 };
 
 const ZONE_ITEM_POOLS = {
-  'Shinobi Village':     ['life_potion', 'heart', 'gold_coin', 'meat', 'milk_pot'],
   'Forest of Whispers':  ['gem_green', 'rock', 'grass', 'fish', 'bar_iron'],
   'Sunken Sands Desert': ['gold_coin', 'silver_coin', 'honey', 'gem_red', 'water_pot'],
   'Crystal Lake':        ['gem_red', 'gem_green', 'bar_gold', 'water_pot', 'life_potion'],
   'Mountain Pass':       ['rock', 'bar_iron', 'gem_red', 'meat', 'heart'],
 };
+
+// Harvest node types allowed per zone (hostile zones only)
+const ZONE_NODE_POOLS = {
+  'Forest of Whispers':  ['bush', 'tree', 'bush', 'bush'],
+  'Crystal Lake':        ['bush', 'rock_node'],
+  'Sunken Sands Desert': ['bush', 'rock_node'],
+  'Mountain Pass':       ['tree', 'rock_node', 'tree'],
+};
+
+const TARGET_NODES_PER_ZONE = 8;
 
 function rollRange([min, max]) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -66,27 +75,12 @@ export class WorldSimulation {
     const objects = mapData.objects ?? [];
     this._staticObjects  = objects.filter(o => ['npc', 'chest', 'sign'].includes(o.type));
 
-    // Harvest nodes
-    this._harvestNodes   = new Map();
-    for (const o of objects.filter(o => o.type === 'harvestNode')) {
-      const cfg = NODE_CONFIG[o.nodeType];
-      if (!cfg) continue;
-      const key = `${o.tileX}_${o.tileY}`;
-      this._harvestNodes.set(key, {
-        key, nodeType: o.nodeType,
-        tileX: o.tileX, tileY: o.tileY,
-        hp: cfg.maxHp, maxHp: cfg.maxHp,
-        depleted: false, respawnAt: null,
-        respawnMs: cfg.respawnMs,
-      });
-    }
-
-    // World items (static spawns from tilemap)
+    // World items — all dynamic, none from tilemap
     this._worldItems  = new Map();
-    for (const o of objects.filter(o => o.type === 'item')) {
-      const key = `${o.tileX}_${o.tileY}`;
-      this._worldItems.set(key, { itemId: o.itemId, tileX: o.tileX, tileY: o.tileY });
-    }
+
+    // Harvest nodes — dynamically spawned in hostile zones only (after worldItems is ready)
+    this._harvestNodes = new Map();
+    this._spawnInitialNodes();
 
     // Chest state
     this._chestState  = new Map();
@@ -268,6 +262,7 @@ export class WorldSimulation {
         dropped.push(`${qty}x ${ITEM_DEFS[drop.itemId]?.name ?? drop.itemId}`);
       }
     }
+    if (dropped.length) player.totalHarvests += 1;
     player.pushEvent(dropped.length
       ? `Harvested ${node.nodeType}: ${dropped.join(', ')}`
       : `Harvested ${node.nodeType} (inventory full?)`);
@@ -347,10 +342,13 @@ export class WorldSimulation {
     const fx = tileX + fdx, fy = tileY + fdy;
 
     const NEARBY = 5;
+    const currentZone = player.zone;
 
     const nearbyNodes = [];
     for (const node of this._harvestNodes.values()) {
-      if (Math.abs(node.tileX - tileX) <= NEARBY && Math.abs(node.tileY - tileY) <= NEARBY) {
+      const inNearby = Math.abs(node.tileX - tileX) <= NEARBY && Math.abs(node.tileY - tileY) <= NEARBY;
+      const inZone   = this._getZoneAt(node.tileX, node.tileY) === currentZone;
+      if (inNearby || inZone) {
         nearbyNodes.push({
           resourceType: node.nodeType,
           tileX: node.tileX, tileY: node.tileY,
@@ -410,7 +408,8 @@ export class WorldSimulation {
     if (!obj) return null;
     if (obj.type === 'chest') {
       const c = this._chestState.get(`${fx}_${fy}`);
-      return { type: 'chest', tileX: fx, tileY: fy, opened: c?.opened ?? false };
+      if (c?.opened) return null;
+      return { type: 'chest', tileX: fx, tileY: fy, opened: false };
     }
     if (obj.type === 'npc') return { type: 'npc', id: obj.id, tileX: fx, tileY: fy };
     if (obj.type === 'sign') return { type: 'sign', text: obj.text, tileX: fx, tileY: fy };
@@ -428,10 +427,11 @@ export class WorldSimulation {
         maxHp:     p.maxHp,
         energy:    p.energy,
         maxEnergy: p.maxEnergy,
-        gold:      p.gold,
-        zone:      p.zone,
-        alive:     p.alive,
-        inventory: p.inventory.map(s => ({ id: s.id, name: s.name, qty: s.qty })),
+        gold:           p.gold,
+        zone:           p.zone,
+        alive:          p.alive,
+        totalHarvests:  p.totalHarvests,
+        inventory:      p.inventory.map(s => ({ id: s.id, name: s.name, qty: s.qty })),
       })),
       worldItems: [...this._worldItems.values()].map(wi => ({
         id: wi.itemId, tileX: wi.tileX, tileY: wi.tileY,
@@ -449,6 +449,8 @@ export class WorldSimulation {
     if (tx < 0 || ty < 0 || tx >= this._width || ty >= this._height) return false;
     if (this._collisionData[ty * this._width + tx] === 1) return false;
     if (this._staticObjects.some(o => o.tileX === tx && o.tileY === ty)) return false;
+    const node = this._harvestNodes.get(`${tx}_${ty}`);
+    if (node && !node.depleted) return false;
     for (const [id, p] of this._players) {
       if (id !== excludeAgentId && p.tileX === tx && p.tileY === ty && p.alive) return false;
     }
@@ -460,6 +462,51 @@ export class WorldSimulation {
       if (tx >= z.x && tx < z.x + z.w && ty >= z.y && ty < z.y + z.h) return z.name;
     }
     return 'Unknown';
+  }
+
+  // ── Dynamic harvest node spawning ─────────────────────────────────────────
+
+  _spawnInitialNodes() {
+    for (const zoneName of Object.keys(ZONE_NODE_POOLS)) {
+      for (let i = 0; i < TARGET_NODES_PER_ZONE; i++) {
+        this._spawnNodeInZone(zoneName);
+      }
+    }
+  }
+
+  _spawnNodeInZone(zoneName) {
+    const pool    = ZONE_NODE_POOLS[zoneName];
+    const zoneDef = this._zones.find(z => z.name === zoneName);
+    if (!pool || !zoneDef) return;
+
+    const nodeType = pool[Math.floor(Math.random() * pool.length)];
+    const cfg      = NODE_CONFIG[nodeType];
+
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const tx = zoneDef.x + Math.floor(Math.random() * zoneDef.w);
+      const ty = zoneDef.y + Math.floor(Math.random() * zoneDef.h);
+      if (this._collisionData[ty * this._width + tx] === 1) continue;
+      if (this._getZoneAt(tx, ty) !== zoneName) continue;
+      // Need at least 1 walkable approach tile adjacent
+      const hasApproach = [[0,1],[0,-1],[1,0],[-1,0]].some(([dx,dy]) => {
+        const nx = tx+dx, ny = ty+dy;
+        return nx>=0 && ny>=0 && nx<this._width && ny<this._height
+          && this._collisionData[ny*this._width+nx] !== 1
+          && !this._staticObjects.some(o=>o.tileX===nx&&o.tileY===ny);
+      });
+      if (!hasApproach) continue;
+      const key = `${tx}_${ty}`;
+      if (this._harvestNodes.has(key)) continue;
+      if (this._staticObjects.some(o => o.tileX === tx && o.tileY === ty)) continue;
+      if (this._worldItems.has(key)) continue;
+      this._harvestNodes.set(key, {
+        key, nodeType, tileX: tx, tileY: ty,
+        hp: cfg.maxHp, maxHp: cfg.maxHp,
+        depleted: false, respawnAt: null,
+        respawnMs: cfg.respawnMs,
+      });
+      return;
+    }
   }
 
   // ── Ticks ──────────────────────────────────────────────────────────────────
@@ -489,15 +536,22 @@ export class WorldSimulation {
       }
     }, 30000);
 
-    // Harvest node respawn check every 5 seconds
+    // Harvest node respawn: remove depleted nodes after timer, spawn fresh ones elsewhere
     setInterval(() => {
       const now = Date.now();
-      for (const node of this._harvestNodes.values()) {
+      for (const [key, node] of this._harvestNodes) {
         if (node.depleted && node.respawnAt && now >= node.respawnAt) {
-          node.hp        = node.maxHp;
-          node.depleted  = false;
-          node.respawnAt = null;
+          const zoneName = this._getZoneAt(node.tileX, node.tileY);
+          this._harvestNodes.delete(key);
+          this._spawnNodeInZone(zoneName);
         }
+      }
+      // Top up any zone that's fallen below target
+      for (const zoneName of Object.keys(ZONE_NODE_POOLS)) {
+        const zoneNodes = [...this._harvestNodes.values()]
+          .filter(n => this._getZoneAt(n.tileX, n.tileY) === zoneName);
+        const deficit = TARGET_NODES_PER_ZONE - zoneNodes.length;
+        for (let i = 0; i < deficit; i++) this._spawnNodeInZone(zoneName);
       }
     }, 5000);
 

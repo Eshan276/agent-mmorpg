@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-import { program }           from 'commander';
-import { AgentLoop }         from './AgentLoop.js';
-import { AnthropicProvider } from './providers/AnthropicProvider.js';
-import { OllamaProvider }    from './providers/OllamaProvider.js';
+import { program }              from 'commander';
+import { AgentLoop }            from './AgentLoop.js';
+import { AnthropicProvider }    from './providers/AnthropicProvider.js';
+import { OllamaProvider }       from './providers/OllamaProvider.js';
+import { ClaudeCodeProvider }   from './providers/ClaudeCodeProvider.js';
 
 program
   .name('mmorpg-agent')
@@ -29,6 +30,11 @@ if (opts.provider === 'anthropic') {
   if (opts.model) modelArgs.model = opts.model;
   provider = new AnthropicProvider({ apiKey, ...modelArgs });
   console.log(`[Agent] Using Anthropic (model: ${opts.model ?? 'claude-haiku-4-5-20251001'}) with tool use`);
+} else if (opts.provider === 'claudecode') {
+  const modelArgs = {};
+  if (opts.model) modelArgs.model = opts.model;
+  provider = new ClaudeCodeProvider({ ...modelArgs });
+  console.log(`[Agent] Using ClaudeCode (model: ${opts.model ?? 'claude-sonnet-4-6'})`);
 } else {
   const modelArgs = {};
   if (opts.model) modelArgs.model = opts.model;
