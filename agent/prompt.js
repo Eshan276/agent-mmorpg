@@ -7,12 +7,10 @@ export function buildObsPrompt(snap) {
   const facing    = snap.facing;
   const nodes     = snap.nearbyNodes?.filter(n => !n.depleted) ?? [];
 
-  const FOOD    = new Set(['meat','fish','honey','heart','life_potion','milk_pot','water_pot']);
+  const FOOD     = new Set(['meat','fish','honey','heart','life_potion','milk_pot','water_pot']);
   const SELLABLE = new Set(['grass','plank','branch','rock','bar_iron','bar_gold','gem_red','gem_green']);
   const hasFood      = inventory.some(i => FOOD.has(i.id));
   const hasResources = inventory.some(i => SELLABLE.has(i.id));
-  const hasAxe       = inventory.some(i => i.id === 'axe');
-  const hasPickaxe   = inventory.some(i => i.id === 'pickaxe');
 
   // ── Situation alerts ──────────────────────────────────────────────────────
   const alerts = [];
@@ -21,6 +19,9 @@ export function buildObsPrompt(snap) {
     alerts.push(`⚠ CRITICAL HP ${hp}/${maxHp} — eat immediately or you will die`);
   else if (hp <= 60)
     alerts.push(`⚠ LOW HP ${hp}/${maxHp}`);
+
+  if (energy <= 20)
+    alerts.push(`⚠ LOW ENERGY ${energy}/${maxEnergy} — return to Shinobi Village to regen, or drink water_pot/honey`);
 
   if (facing && facing.type !== 'sign')
     alerts.push(`→ You are FACING a ${facing.type}${facing.resourceType ? ' ('+facing.resourceType+')' : facing.id ? ' ('+facing.id+')' : ''} — call interact() now`);
@@ -33,9 +34,6 @@ export function buildObsPrompt(snap) {
 
   if (!facing && hasResources)
     alerts.push(`→ go_to(34,34,up) then interact() to sell resources`);
-
-  if (!facing && !hasAxe && !hasPickaxe)
-    alerts.push(`→ go_to(38,34,up) then interact() to open chest and get tools`);
 
   const node = nodes.length
     ? nodes.reduce((a, b) => {
@@ -59,6 +57,16 @@ export function buildObsPrompt(snap) {
     `Nearby nodes: ${nodes.length ? nodes.map(n => `${n.resourceType}@(${n.tileX},${n.tileY})`).join(', ') : 'none'}`,
     `Recent events: ${snap.recentEvents?.join('; ') || 'none'}`,
   ];
+
+  // Other agents presence and chat
+  const others = snap.otherAgents ?? [];
+  const agentChat = snap.agentChat ?? [];
+  if (others.length) {
+    lines.push(`Other agents: ${others.map(a => `${a.agentId}@(${a.tileX},${a.tileY}) zone=${a.zone} hp=${a.hp}`).join(' | ')}`);
+  }
+  if (agentChat.length) {
+    lines.push(`Agent chat: ${agentChat.map(c => `${c.agentId} says: "${c.message}"`).join(' | ')}`);
+  }
 
   const situationBlock = alerts.length
     ? `SITUATION:\n${alerts.map(a => '  ' + a).join('\n')}\n\n`

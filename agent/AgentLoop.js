@@ -136,6 +136,7 @@ export class AgentLoop {
         toolResults.push({
           type: 'tool_result',
           tool_use_id: toolUse.id,
+          _toolName: toolUse.name,
           content: JSON.stringify(result),
         });
 
@@ -162,11 +163,14 @@ export class AgentLoop {
 
       case 'interact': {
         const snap = await this._act('interact');
+        const events = snap.recentEvents ?? [];
+        const failed = events.some(e => e.includes('Not enough energy') || e.includes('Nothing to') || e.includes('Cannot'));
         return {
-          ok: true,
-          events: snap.recentEvents ?? [],
+          ok: !failed,
+          events,
           facing: snap.facing ?? null,
           hp: snap.player.hp,
+          energy: snap.player.energy,
           gold: snap.gold,
           inventory: snap.inventory,
         };
@@ -174,19 +178,24 @@ export class AgentLoop {
 
       case 'eat': {
         const snap = await this._act('eat');
+        const events = snap.recentEvents ?? [];
+        const failed = events.some(e => e.includes('Nothing to eat'));
         return {
-          ok: true,
-          events: snap.recentEvents ?? [],
+          ok: !failed,
+          events,
           hp: snap.player.hp,
+          energy: snap.player.energy,
           inventory: snap.inventory,
         };
       }
 
       case 'buy': {
         const snap = await this._act(`buy:${input.itemId}`);
+        const events = snap.recentEvents ?? [];
+        const failed = events.some(e => e.includes('Not facing') || e.includes('Need') || e.includes('Cannot buy') || e.includes('full'));
         return {
-          ok: true,
-          events: snap.recentEvents ?? [],
+          ok: !failed,
+          events,
           gold: snap.gold,
           inventory: snap.inventory,
         };
@@ -195,6 +204,13 @@ export class AgentLoop {
       case 'check_status': {
         const snap = this._snapshot;
         return this._snapSummary(snap);
+      }
+
+      case 'say': {
+        const msg = String(input.message ?? '').slice(0, 60);
+        this._socket.emit('agent:chat', { agentId: this._agentId, message: msg });
+        console.log(`[Agent:${this._agentId}] says: "${msg}"`);
+        return { ok: true, said: msg };
       }
 
       case 'done':

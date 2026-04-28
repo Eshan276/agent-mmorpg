@@ -144,8 +144,9 @@ export class ClaudeCodeProvider {
   _applyToolResult(state, r) {
     if (r.tileX !== undefined) { state.tileX = r.tileX; state.tileY = r.tileY; }
     if (r.zone)      state.zone = r.zone;
-    if (r.hp !== undefined)   state.hp = r.hp;
-    if (r.gold !== undefined) state.gold = r.gold;
+    if (r.hp !== undefined)     state.hp = r.hp;
+    if (r.energy !== undefined) state.energy = r.energy;
+    if (r.gold !== undefined)   state.gold = r.gold;
     if (r.inventory) state.inventory = r.inventory;
     if (r.nearbyNodes) state.nearbyNodes = r.nearbyNodes.filter(n => !n.depleted);
     if (r.events)    state.events = r.events;
@@ -164,10 +165,16 @@ export class ClaudeCodeProvider {
     const inv = s.inventory ?? [];
     const hasAxe       = inv.some(i => i.id === 'axe');
     const hasPickaxe   = inv.some(i => i.id === 'pickaxe');
-    const FOOD_IDS     = new Set(['meat','fish','honey','heart','life_potion','milk_pot','water_pot']);
+    const HP_FOOD_IDS  = new Set(['meat','fish','heart','life_potion']);
+    const EN_FOOD_IDS  = new Set(['honey','milk_pot','water_pot']);
+    const FOOD_IDS     = new Set([...HP_FOOD_IDS, ...EN_FOOD_IDS]);
     const RESOURCE_IDS = new Set(['grass','plank','branch','rock','bar_iron','bar_gold','gem_red','gem_green']);
+    const hasHpFood    = inv.some(i => HP_FOOD_IDS.has(i.id));
+    const hasEnFood    = inv.some(i => EN_FOOD_IDS.has(i.id));
     const hasFood      = inv.some(i => FOOD_IDS.has(i.id));
     const hasResources = inv.some(i => RESOURCE_IDS.has(i.id));
+
+    const energy = s.energy ?? 100;
 
     // 1. Facing a harvest node → interact
     if (s.facingType === 'harvest') {
@@ -179,20 +186,33 @@ export class ClaudeCodeProvider {
       return this._tool('interact', { reason: 'opening chest for tools' });
     }
 
-    // 3. Facing merchant AND have resources → sell
-    if ((s.facingType === 'npc') && hasResources) {
-      return this._tool('interact', { reason: 'selling resources to merchant' });
+    // 3. Facing merchant AND (have resources OR need to buy food)
+    if (s.facingType === 'npc') {
+      if (hasResources) return this._tool('interact', { reason: 'selling resources to merchant' });
+      if (energy <= 20 || s.hp <= 40) return this._tool('buy', { itemId: energy <= 20 ? 'honey' : 'meat', reason: 'buying food urgently' });
     }
 
-    // 4. Low HP and have food → eat
-    if (s.hp <= 60 && hasFood) {
-      return this._tool('eat', { reason: `hp=${s.hp}, eating food` });
+    // 4. Critical energy → eat energy food immediately, or go buy
+    if (energy <= 20) {
+      if (hasEnFood) return this._tool('eat', { reason: `energy=${energy}, eating energy food` });
+      if (hasHpFood) return this._tool('eat', { reason: `energy=${energy}, eating food to survive` });
+      // No food — go buy urgently regardless of gold
+      return this._tool('go_to', { tileX: 34, tileY: 34, facingDir: 'up', reason: `energy critical (${energy}), buying food` });
     }
 
+    // 5. Low HP and have HP food → eat
+    if (s.hp <= 50 && hasHpFood) {
+      return this._tool('eat', { reason: `hp=${s.hp}, eating hp food` });
+    }
 
-    // 7. Low HP, no food, have gold → buy food
-    if (s.hp <= 60 && !hasFood && s.gold >= 3) {
-      return this._tool('go_to', { tileX: 34, tileY: 34, facingDir: 'up', reason: 'buying food (low hp)' });
+    // 6. Low HP, no food, have gold → go buy
+    if (s.hp <= 50 && !hasFood && s.gold >= 3) {
+      return this._tool('go_to', { tileX: 34, tileY: 34, facingDir: 'up', reason: `hp low (${s.hp}), buying food` });
+    }
+
+    // 6b. Energy getting low, have energy food → eat proactively
+    if (energy <= 40 && hasEnFood) {
+      return this._tool('eat', { reason: `energy=${energy}, eating energy food proactively` });
     }
 
     // 8. Nearby undepleted node → go harvest it (pick closest harvestable)

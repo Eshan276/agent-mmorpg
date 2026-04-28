@@ -4,6 +4,7 @@ import { AgentLoop }            from './AgentLoop.js';
 import { AnthropicProvider }    from './providers/AnthropicProvider.js';
 import { OllamaProvider }       from './providers/OllamaProvider.js';
 import { ClaudeCodeProvider }   from './providers/ClaudeCodeProvider.js';
+import { GeminiProvider }       from './providers/GeminiProvider.js';
 
 program
   .name('mmorpg-agent')
@@ -35,6 +36,16 @@ if (opts.provider === 'anthropic') {
   if (opts.model) modelArgs.model = opts.model;
   provider = new ClaudeCodeProvider({ ...modelArgs });
   console.log(`[Agent] Using ClaudeCode (model: ${opts.model ?? 'claude-sonnet-4-6'})`);
+} else if (opts.provider === 'gemini') {
+  const apiKey = opts.apiKey ?? process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error('Error: Gemini API key required. Use --api-key or set GEMINI_API_KEY env var.');
+    process.exit(1);
+  }
+  const modelArgs = {};
+  if (opts.model) modelArgs.model = opts.model;
+  provider = new GeminiProvider({ apiKey, ...modelArgs });
+  console.log(`[Agent] Using Gemini (model: ${opts.model ?? 'gemini-2.5-flash'})`);
 } else {
   const modelArgs = {};
   if (opts.model) modelArgs.model = opts.model;

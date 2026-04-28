@@ -105,6 +105,7 @@ class WorldScene extends Phaser.Scene {
     this._remotes          = new Map();
     this._prevAlive        = new Map(); // agentId → bool, for death/respawn effects
     this._targetGraphics   = this.add.graphics().setDepth(100);
+    this._chatBubbles      = new Map(); // agentId → { bg, text, tweenRef }
 
     // Build tilemap layers
     new TilemapBuilder(this).build(mapData);
@@ -133,15 +134,29 @@ class WorldScene extends Phaser.Scene {
 
     // Camera
     const { width, height } = mapData;
-    this.cameras.main.setBounds(0, 0, width*TILE, height*TILE);
-    this.cameras.main.setZoom(2);
-    this.cameras.main.centerOn((width*TILE)/2, (height*TILE)/2);
+    const mapW = width  * TILE;
+    const mapH = height * TILE;
+    this._mapW = mapW;
+    this._mapH = mapH;
 
-    // Drag to pan
+    // Compute minimum zoom so the map always fills the viewport (no black edges)
+    const _minZoom = () => Math.max(
+      this.scale.width  / mapW,
+      this.scale.height / mapH,
+    );
+    this._minZoom = _minZoom;
+
+    const initZoom = Math.max(_minZoom(), 2);
+    this.cameras.main.setBounds(0, 0, mapW, mapH);
+    this.cameras.main.setZoom(initZoom);
+    this.cameras.main.centerOn(mapW / 2, mapH / 2);
+
+    // Drag to pan — track pointer delta directly for smooth 1:1 panning
     this.input.on('pointermove', ptr => {
       if (ptr.isDown) {
-        this.cameras.main.scrollX -= ptr.velocity.x / this.cameras.main.zoom / 10;
-        this.cameras.main.scrollY -= ptr.velocity.y / this.cameras.main.zoom / 10;
+        const cam = this.cameras.main;
+        cam.scrollX -= (ptr.x - ptr.prevPosition.x) / cam.zoom;
+        cam.scrollY -= (ptr.y - ptr.prevPosition.y) / cam.zoom;
       }
     });
 
@@ -156,9 +171,23 @@ class WorldScene extends Phaser.Scene {
       this._checkHoverWorld(world.x, world.y, e.clientX, e.clientY);
     });
     this.game.canvas.addEventListener('mouseleave', () => this._hideTooltip());
-    this.input.on('wheel', (_ptr, _objs, _dx, dy) => {
-      const z = Phaser.Math.Clamp(this.cameras.main.zoom - dy * 0.001, 0.5, 8);
-      this.cameras.main.setZoom(z);
+    this.input.on('wheel', (ptr, _objs, _dx, dy) => {
+      const cam     = this.cameras.main;
+      const minZoom = this._minZoom();
+      const newZoom = Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), minZoom, 10);
+      // Zoom toward cursor position
+      const worldPre  = cam.getWorldPoint(ptr.x, ptr.y);
+      cam.setZoom(newZoom);
+      const worldPost = cam.getWorldPoint(ptr.x, ptr.y);
+      cam.scrollX += worldPre.x - worldPost.x;
+      cam.scrollY += worldPre.y - worldPost.y;
+    });
+
+    // On window resize, re-clamp zoom so map always fills viewport
+    this.scale.on('resize', () => {
+      const cam = this.cameras.main;
+      cam.setBounds(0, 0, this._mapW, this._mapH);
+      if (cam.zoom < this._minZoom()) cam.setZoom(this._minZoom());
     });
 
     this._connectSocket();
@@ -318,7 +347,7 @@ class WorldScene extends Phaser.Scene {
     socket.on('disconnect', reason => console.log('[WorldView] disconnected:', reason));
   }
 
-  _onWorldState({ players = [], worldItems = [], harvestNodes = [], agentTargets = [] }) {
+  _onWorldState({ players = [], worldItems = [], harvestNodes = [], agentTargets = [], chatMessages = [] }) {
     // Sync dynamic layers
     this._syncWorldItems(worldItems);
     this._syncHarvestNodes(harvestNodes);
@@ -337,6 +366,7 @@ class WorldScene extends Phaser.Scene {
     if (countEl) countEl.textContent = players.length;
     this._updatePanel(players, worldItems, harvestNodes);
     this._drawTargetLines(players, agentTargets);
+    this._syncChatBubbles(chatMessages);
 
     // Pan camera to first agent when it first appears
     if (hadNone && players.length > 0) {
@@ -591,6 +621,50 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
+  _syncChatBubbles(chatMessages) {
+    const active = new Set(chatMessages.map(m => m.agentId));
+
+    // Remove bubbles for agents no longer chatting
+    for (const [id, bubble] of this._chatBubbles) {
+      if (!active.has(id)) {
+        bubble.bg.destroy();
+        bubble.text.destroy();
+        this._chatBubbles.delete(id);
+      }
+    }
+
+    for (const { agentId, message } of chatMessages) {
+      const rp = this._remotes.get(agentId);
+      if (!rp) continue;
+
+      const px = rp.sprite.x;
+      const py = rp.sprite.y - TILE - 14;
+      const truncated = message.length > 30 ? message.slice(0, 28) + '…' : message;
+
+      if (this._chatBubbles.has(agentId)) {
+        // Update existing bubble position and text
+        const bubble = this._chatBubbles.get(agentId);
+        bubble.text.setText(truncated).setPosition(px, py);
+        const b = bubble.text.getBounds();
+        bubble.bg.setPosition(b.x - 3, b.y - 2);
+        bubble.bg.setSize(b.width + 6, b.height + 4);
+      } else {
+        // Create new bubble
+        const textObj = this.add.text(px, py, truncated, {
+          fontSize: '5px', fontFamily: 'monospace',
+          color: '#111111', padding: { x: 0, y: 0 },
+        }).setOrigin(0.5, 1).setDepth(200);
+
+        const b = textObj.getBounds();
+        const bg = this.add.rectangle(b.x - 3, b.y - 2, b.width + 6, b.height + 4, 0xfffff0)
+          .setOrigin(0, 0).setDepth(199).setStrokeStyle(1, 0x888866);
+
+        // Small tail triangle pointing down toward the agent
+        this._chatBubbles.set(agentId, { bg, text: textObj });
+      }
+    }
+  }
+
   _removeAgent(agentId) {
     const rp = this._remotes.get(agentId);
     if (!rp) return;
@@ -599,6 +673,9 @@ class WorldScene extends Phaser.Scene {
     rp.hpTag.destroy();
     this._remotes.delete(agentId);
     this._prevAlive.delete(agentId);
+    // Clean up chat bubble if present
+    const bubble = this._chatBubbles.get(agentId);
+    if (bubble) { bubble.bg.destroy(); bubble.text.destroy(); this._chatBubbles.delete(agentId); }
   }
 
   _floatText(x, y, text, color, duration = 1500) {
@@ -617,7 +694,7 @@ new Phaser.Game({
   type: Phaser.AUTO,
   width:  window.innerWidth,
   height: window.innerHeight,
-  backgroundColor: '#1a2a1a',
+  backgroundColor: '#000000',
   scene: [WorldScene],
   scale: { mode: Phaser.Scale.RESIZE },
   pixelArt: true,

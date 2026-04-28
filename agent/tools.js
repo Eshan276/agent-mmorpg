@@ -40,14 +40,14 @@ export const TOOLS = [
   },
   {
     name: 'buy',
-    description: 'Buy an item from the merchant. You must be facing the merchant first (go_to (34,34) facingDir="up").',
+    description: 'Buy an item from the merchant. You must be standing at (34,34) facing up first (go_to tileX=34 tileY=34 facingDir="up"). You can also buy after selling (same position).',
     input_schema: {
       type: 'object',
       properties: {
         itemId: {
           type: 'string',
-          enum: ['fish', 'meat', 'heart', 'life_potion'],
-          description: 'fish=3g(+10HP)  meat=4g(+15HP)  heart=5g(+20HP)  life_potion=8g(+40HP)',
+          enum: ['fish', 'meat', 'heart', 'life_potion', 'honey', 'water_pot'],
+          description: 'HP items: fish=3g(+10HP)  meat=4g(+15HP)  heart=5g(+20HP)  life_potion=8g(+40HP) | Energy items: honey=5g(+20EN)  water_pot=4g(+15EN)',
         },
         reason: { type: 'string' },
       },
@@ -61,6 +61,17 @@ export const TOOLS = [
       type: 'object',
       properties: {},
       required: [],
+    },
+  },
+  {
+    name: 'say',
+    description: 'Say something out loud — visible as a chat bubble above your character in the world. Use to comment on what you are doing, react to events, or talk to nearby agents.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: 'What to say (keep it short, max 60 chars)' },
+      },
+      required: ['message'],
     },
   },
   {
@@ -108,23 +119,33 @@ You can call multiple tools in sequence to complete a goal — keep going until 
 ### Survival
 - HP drains 3 every 30s. Hostile zones drain extra 2 HP + 2 energy every 20s.
 - HP does NOT regen — eat food to heal
-- Energy regens only in Shinobi Village
-- Die → respawn at (40,35), lose nothing
+- Energy regens only in Shinobi Village (passive) — or drink honey/water_pot anywhere
+- Interacting with merchant or chest costs 10 energy. Harvesting nodes costs 0 energy.
+- Die at 0 HP → respawn at (40,35), lose nothing
 
 ### Economy
-- Sell: go_to (34,34) facingDir="up" → interact → sells everything automatically
-- Buy: go_to (34,34) facingDir="up" → buy(itemId)
-- Sell prices: grass=1g, plank=2g, branch=1g, rock=1g, bar_iron=6g, gem=10-18g
-- Buy prices: fish=3g, meat=4g, heart=5g, life_potion=8g
+- Sell: go_to tileX=34 tileY=34 facingDir="up" → interact → sells ALL resources automatically
+- Buy: stand at same spot (34,34) facing up → buy(itemId) — no extra movement needed after selling
+- Sell prices: grass=1g, plank=2g, branch=1g, rock=1g, bar_iron=6g, gem_red=12g, gem_green=10g
+- Buy HP: fish=3g(+10HP) meat=4g(+15HP) heart=5g(+20HP) life_potion=8g(+40HP)
+- Buy Energy: honey=5g(+20EN) water_pot=4g(+15EN)
 
 ## How to play well
-1. Get tools first: go_to (38,34) facingDir="up" → interact
-2. Enter a hostile zone, find nodes in nearbyNodes, harvest them
-3. When inventory has resources, go sell
-4. Keep HP above 60 — buy and eat food
-5. Repeat
+1. Enter a hostile zone, find nodes in nearbyNodes, harvest them
+2. When inventory has resources, go sell
+3. Keep HP above 60 — buy and eat food
+4. Repeat
+
+## Talking — REQUIRED
+You MUST call say() at least once per session. Speak like a character in the world:
+- When you enter a zone: say("Heading into the forest for resources")
+- When you harvest: say("Found some planks!")
+- When low HP: say("Ouch, need to heal soon")
+- When you sell: say("Cashed in my haul")
+- React to what other agents said if you see it in the observation
+Keep messages short and in-character. say() is free — use it.
 
 ## Tool sequencing example
-- go_to(38,34, up) → interact() → go_to(24,35, down) → [explore] → go_to(nodeX, nodeY+1, up) → interact() → go_to(34,34, up) → interact() → done()
+- say("Time to harvest!") → go_to(24,35, down) → [explore] → go_to(nodeX, nodeY+1, up) → interact() → say("Got some planks") → go_to(34,34, up) → interact() → done()
 
 Call done() when you have finished your current goal or are stuck and need a fresh look.`;

@@ -3,14 +3,16 @@ import { WorldSimulation } from './WorldSimulation.js';
 import { logAction, flush } from './AxiomLogger.js';
 
 const RENDER_INTERVAL_MS = 200;
+const CHAT_TTL_MS = 6000; // bubbles last 6 seconds
 
 export class GameServer {
   constructor(httpServer) {
     this.io   = new Server(httpServer, { cors: { origin: '*', methods: ['GET', 'POST'] } });
     this._sim = new WorldSimulation();
 
-    this._agents     = new Map();  // agentId → { socketId }
+    this._agents     = new Map();  // agentId → { socketId, target? }
     this._spectators = new Set();  // socketId[]
+    this._chatMsgs   = new Map();  // agentId → { message, expiresAt }
 
     this.io.on('connection', socket => this._onConnect(socket));
 
@@ -37,7 +39,18 @@ export class GameServer {
       this._agents.set(agentId, { socketId: socket.id });
       this._sim.registerPlayer(agentId);
       const obs = this._sim.buildObservation(agentId);
+      const now = Date.now();
+      obs.agentChat = [...this._chatMsgs.entries()]
+        .filter(([cid, c]) => cid !== agentId && now < c.expiresAt)
+        .map(([cid, c]) => ({ agentId: cid, message: c.message }));
       socket.emit('server:observation', obs);
+    });
+
+    socket.on('agent:chat', ({ message }) => {
+      if (role !== 'agent' || !agentId) return;
+      const text = String(message ?? '').slice(0, 60);
+      this._chatMsgs.set(agentId, { message: text, expiresAt: Date.now() + CHAT_TTL_MS });
+      console.log(`[Chat] ${agentId}: "${text}"`);
     });
 
     socket.on('agent:target', ({ tileX, tileY, reason }) => {
@@ -50,6 +63,11 @@ export class GameServer {
       this._sim.processAction(agentId, action);
       const obs = this._sim.buildObservation(agentId);
       if (obs) {
+        // Inject other agents' active chat so agents can hear each other
+        const now = Date.now();
+        obs.agentChat = [...this._chatMsgs.entries()]
+          .filter(([id, c]) => id !== agentId && now < c.expiresAt)
+          .map(([id, c]) => ({ agentId: id, message: c.message }));
         socket.emit('server:observation', obs);
         logAction(agentId, action, {
           tileX:    obs.player.tileX,
@@ -78,10 +96,19 @@ export class GameServer {
   _broadcastWorldState() {
     if (this._spectators.size === 0) return;
     const state = this._sim.buildRendererState();
-    // Attach agent targets for debug overlay
+
     state.agentTargets = [...this._agents.entries()]
       .filter(([, a]) => a.target)
       .map(([id, a]) => ({ agentId: id, ...a.target }));
+
+    // Attach active chat messages, prune expired ones
+    const now = Date.now();
+    for (const [id, chat] of this._chatMsgs) {
+      if (now >= chat.expiresAt) this._chatMsgs.delete(id);
+    }
+    state.chatMessages = [...this._chatMsgs.entries()]
+      .map(([agentId, { message }]) => ({ agentId, message }));
+
     for (const sid of this._spectators) {
       this.io.to(sid).emit('server:worldState', state);
     }
