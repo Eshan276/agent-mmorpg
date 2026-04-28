@@ -5,25 +5,13 @@
 export class ClaudeCodeProvider {
   constructor({ model = 'claude-code' } = {}) {
     this._model = model;
-    // nodes blocked this session: "tileX,tileY" keys
-    this._blockedNodes = new Set();
-    this._lastPos = null;
+    this._blockedNodes = new Set();   // "tileX,tileY" node keys that are permanently unreachable
+    this._failedApproaches = new Set(); // "tileX,tileY" approach tiles that didn't face the node
   }
 
   async completeWithTools(systemPrompt, messages, tools) {
     const state = this._extractState(messages);
 
-    // Clear blocked nodes when position changes significantly (entered new area)
-    const posKey = `${state.tileX},${state.tileY}`;
-    if (this._lastPos && this._lastPos !== posKey) {
-      // Count how many blocked nodes are still relevant (within 20 tiles)
-      const relevant = [...this._blockedNodes].filter(k => {
-        const [bx, by] = k.split(',').map(Number);
-        return Math.abs(bx - state.tileX) + Math.abs(by - state.tileY) < 20;
-      });
-      this._blockedNodes = new Set(relevant);
-    }
-    this._lastPos = posKey;
 
     const tool  = this._decide(state);
     console.log(`[ClaudeCode] state: pos=(${state.tileX},${state.tileY}) zone=${state.zone} hp=${state.hp} inv=[${state.inventory.map(i=>i.id).join(',')}] facing=${state.facingType ?? 'null'} blocked=[${[...this._blockedNodes].join('|')}]`);
@@ -46,8 +34,10 @@ export class ClaudeCodeProvider {
       energy: 100, gold: 0, zone: 'Shinobi Village',
       inventory: [], facing: null, facingType: null,
       nearbyNodes: [], events: [],
-      lastGoToNode: null, // {tileX,tileY} of the node the last go_to was heading to
     };
+
+    // Map tool_use_id → node target so stuck results can mark the right node
+    const pendingGoTo = new Map(); // tool_use_id → {tileX,tileY}
 
     for (const msg of messages) {
       if (msg.role === 'assistant' && Array.isArray(msg.content)) {
@@ -55,19 +45,47 @@ export class ClaudeCodeProvider {
           if (block.type === 'tool_use' && block.name === 'go_to') {
             const nx = block.input._nodeTileX ?? null;
             const ny = block.input._nodeTileY ?? null;
-            state.lastGoToNode = (nx !== null && ny !== null) ? { tileX: nx, tileY: ny } : null;
+            if (nx !== null && ny !== null) {
+              pendingGoTo.set(block.id, {
+                node: { tileX: nx, tileY: ny },
+                approach: { tileX: block.input.tileX, tileY: block.input.tileY },
+              });
+            }
           }
         }
       }
       if (msg.role === 'user') {
         if (typeof msg.content === 'string') {
-          // Initial observation — parse text
           state = { ...state, ...this._parseObsText(msg.content) };
         } else if (Array.isArray(msg.content)) {
           for (const block of msg.content) {
             if (block.type === 'tool_result') {
               try {
                 const r = JSON.parse(block.content);
+                // Track failed approaches; block the node only when all 4 directions fail
+                const entry = pendingGoTo.get(block.tool_use_id);
+                if (entry) {
+                  const failed = r.stuck || (r.arrived && r.facing?.type !== 'harvest');
+                  if (failed) {
+                    const aKey = `${entry.approach.tileX},${entry.approach.tileY}`;
+                    this._failedApproaches.add(aKey);
+                    // Check if all 4 approach directions for this node are now failed
+                    const { tileX: nx, tileY: ny } = entry.node;
+                    const allApproaches = [
+                      `${nx},${ny+1}`, `${nx-1},${ny}`, `${nx+1},${ny}`, `${nx},${ny-1}`,
+                    ];
+                    const allFailed = allApproaches.every(k => this._failedApproaches.has(k));
+                    if (allFailed) {
+                      const nKey = `${nx},${ny}`;
+                      if (!this._blockedNodes.has(nKey)) {
+                        this._blockedNodes.add(nKey);
+                        console.log(`[ClaudeCode] node (${nx},${ny}) fully blocked — all approaches failed`);
+                      }
+                    } else {
+                      console.log(`[ClaudeCode] approach (${entry.approach.tileX},${entry.approach.tileY}) failed for node (${nx},${ny}), will try another direction`);
+                    }
+                  }
+                }
                 this._applyToolResult(state, r);
               } catch { /* ignore */ }
             }
@@ -138,11 +156,6 @@ export class ClaudeCodeProvider {
       state.facingType = r.facing?.type ?? null;
     }
 
-    // Navigation got stuck — mark the target node as blocked
-    if (r.stuck && state.lastGoToNode) {
-      this._blockedNodes.add(`${state.lastGoToNode.tileX},${state.lastGoToNode.tileY}`);
-      console.log(`[ClaudeCode] marking node (${state.lastGoToNode.tileX},${state.lastGoToNode.tileY}) as blocked`);
-    }
   }
 
   // ── Decision logic — same rules I'd apply reading the observation ───────────
@@ -197,36 +210,35 @@ export class ClaudeCodeProvider {
       return this._tool('go_to', { tileX: 34, tileY: 34, facingDir: 'up', reason: 'selling resources' });
     }
     if (nodes.length > 0) {
-      // Filter to nodes we can harvest with current tools
-      const harvestable = nodes.filter(n => {
-        if (n.resourceType === 'tree')      return hasAxe;
-        if (n.resourceType === 'rock_node') return hasPickaxe;
-        return true; // bush — no tool needed
-      });
-      const target = harvestable.length > 0
-        ? harvestable.reduce((a, b) => {
-            const da = Math.abs(a.tileX - s.tileX) + Math.abs(a.tileY - s.tileY);
-            const db = Math.abs(b.tileX - s.tileX) + Math.abs(b.tileY - s.tileY);
-            return da <= db ? a : b;
-          })
-        : null;
+      // Sort harvestable nodes by distance, try each until we find one with a valid approach
+      const harvestable = nodes
+        .filter(n => {
+          if (n.resourceType === 'tree')      return hasAxe;
+          if (n.resourceType === 'rock_node') return hasPickaxe;
+          return true;
+        })
+        .sort((a, b) => {
+          const da = Math.abs(a.tileX - s.tileX) + Math.abs(a.tileY - s.tileY);
+          const db = Math.abs(b.tileX - s.tileX) + Math.abs(b.tileY - s.tileY);
+          return da - db;
+        });
 
-      if (target) {
-        // All 4 approach directions in priority order
+      for (const target of harvestable) {
         const approaches = [
           { tileX: target.tileX,     tileY: target.tileY + 1, facingDir: 'up'    },
           { tileX: target.tileX - 1, tileY: target.tileY,     facingDir: 'right' },
           { tileX: target.tileX + 1, tileY: target.tileY,     facingDir: 'left'  },
           { tileX: target.tileX,     tileY: target.tileY - 1, facingDir: 'down'  },
-        ].filter(a => a.tileX >= 0 && a.tileY >= 0 && a.tileX < 80 && a.tileY < 80);
+        ].filter(a =>
+          a.tileX >= 0 && a.tileY >= 0 && a.tileX < 80 && a.tileY < 80 &&
+          !this._failedApproaches.has(`${a.tileX},${a.tileY}`)
+        );
 
-        // Pick approach we're NOT currently stuck at (facing null means stuck)
-        const stuck = approaches.filter(a => s.tileX === a.tileX && s.tileY === a.tileY && !s.facingType);
-        const approach = approaches.find(a => !stuck.includes(a)) ?? approaches[0];
+        if (approaches.length === 0) continue; // all directions failed — try next node
 
         return this._tool('go_to', {
-          tileX: approach.tileX, tileY: approach.tileY,
-          facingDir: approach.facingDir,
+          tileX: approaches[0].tileX, tileY: approaches[0].tileY,
+          facingDir: approaches[0].facingDir,
           reason: `harvesting ${target.resourceType} at (${target.tileX},${target.tileY})`,
           _nodeTileX: target.tileX, _nodeTileY: target.tileY,
         });

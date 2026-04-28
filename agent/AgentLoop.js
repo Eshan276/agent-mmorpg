@@ -235,22 +235,28 @@ export class AgentLoop {
         };
       }
 
-      // One tile away and it's blocked (NPC/chest/node tile) — face it
+      // One tile away and it's a harvest/chest tile — face it and return
+      // (but NOT if an NPC/player is blocking — let pathfinder route around them)
       if (dist === 1) {
         const dir = dirFromDelta(dx, dy);
         if (dir && snap.blockedDirections?.includes(dir)) {
+          // Peek at what's facing to decide if this is the intended target
           await this._act(`move_${dir}`);
           const finalSnap = this._snapshot;
+          const facingType = finalSnap.facing?.type;
           console.log(`[Agent:${this._agentId}] dist1-blocked at (${finalSnap.player.tileX},${finalSnap.player.tileY}) facing=${JSON.stringify(finalSnap.facing)}`);
-          return {
-            arrived: true,
-            tileX: finalSnap.player.tileX,
-            tileY: finalSnap.player.tileY,
-            facing: finalSnap.facing ?? null,
-            nearbyNodes: finalSnap.nearbyNodes?.filter(n => !n.depleted) ?? [],
-            hp: finalSnap.player.hp,
-            zone: finalSnap.player.zone,
-          };
+          if (facingType === 'harvest' || facingType === 'chest') {
+            return {
+              arrived: true,
+              tileX: finalSnap.player.tileX,
+              tileY: finalSnap.player.tileY,
+              facing: finalSnap.facing ?? null,
+              nearbyNodes: finalSnap.nearbyNodes?.filter(n => !n.depleted) ?? [],
+              hp: finalSnap.player.hp,
+              zone: finalSnap.player.zone,
+            };
+          }
+          // NPC or player blocking — don't return, let loop continue routing around
         }
       }
 
