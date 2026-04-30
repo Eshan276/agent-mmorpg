@@ -143,7 +143,11 @@
     .log-row:last-child { border-bottom: none; }
     .log-time { color: #445; }
     .log-agent { color: #6688bb; margin: 0 4px; }
-    .log-action { color: #aaffaa; font-weight: bold; margin-right: 4px; }
+    .log-action     { color: #aaffaa; font-weight: bold; margin-right: 4px; }
+    .log-action-say { color: #ffdd88; font-weight: bold; margin-right: 4px; }
+    .log-action-act { color: #ff9944; font-weight: bold; margin-right: 4px; }
+    .log-action-eat { color: #88ff88; font-weight: bold; margin-right: 4px; }
+    .log-action-buy { color: #88ccff; font-weight: bold; margin-right: 4px; }
     .log-pos { color: #667; }
     .log-hp { color: #e74c3c; margin-left: 4px; }
     .log-gold { color: #ffd700; margin-left: 4px; }
@@ -277,11 +281,19 @@
 
         list.innerHTML = rows.map(r => {
           const t = r._time ? new Date(r._time).toLocaleTimeString() : '';
+          const action = r.action ?? '';
+          // Pick icon + color by action type
+          let actionClass = 'log-action';
+          let icon = '';
+          if (action === 'say')                      { actionClass = 'log-action-say';  icon = '💬 '; }
+          else if (action === 'interact')            { actionClass = 'log-action-act';  icon = '⚡ '; }
+          else if (action === 'eat')                 { actionClass = 'log-action-eat';  icon = '🍖 '; }
+          else if (action.startsWith('buy:'))        { actionClass = 'log-action-buy';  icon = '🛒 '; }
           const events = r.events ? `<span class="log-events">${r.events}</span>` : '';
           return `<div class="log-row">
             <span class="log-time">${t}</span>
             <span class="log-agent">${r.agentId ?? ''}</span>
-            <span class="log-action">${r.action ?? ''}</span>
+            <span class="${actionClass}">${icon}${action}</span>
             <span class="log-pos">(${r.tileX ?? '?'},${r.tileY ?? '?'})</span>
             <span class="log-hp">hp:${r.hp ?? '?'}</span>
             <span class="log-gold">g:${r.gold ?? '?'}</span>

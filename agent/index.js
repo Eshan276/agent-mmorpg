@@ -5,6 +5,7 @@ import { AnthropicProvider }    from './providers/AnthropicProvider.js';
 import { OllamaProvider }       from './providers/OllamaProvider.js';
 import { ClaudeCodeProvider }   from './providers/ClaudeCodeProvider.js';
 import { GeminiProvider }       from './providers/GeminiProvider.js';
+import { OpenRouterProvider }   from './providers/OpenRouterProvider.js';
 
 program
   .name('mmorpg-agent')
@@ -46,6 +47,16 @@ if (opts.provider === 'anthropic') {
   if (opts.model) modelArgs.model = opts.model;
   provider = new GeminiProvider({ apiKey, ...modelArgs });
   console.log(`[Agent] Using Gemini (model: ${opts.model ?? 'gemini-2.5-flash'})`);
+} else if (opts.provider === 'openrouter') {
+  const apiKey = opts.apiKey ?? process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    console.error('Error: OpenRouter API key required. Use --api-key or set OPENROUTER_API_KEY env var.');
+    process.exit(1);
+  }
+  const modelArgs = {};
+  if (opts.model) modelArgs.model = opts.model;
+  provider = new OpenRouterProvider({ apiKey, ...modelArgs });
+  console.log(`[Agent] Using OpenRouter (model: ${opts.model ?? 'google/gemini-2.5-flash:google'})`);
 } else {
   const modelArgs = {};
   if (opts.model) modelArgs.model = opts.model;

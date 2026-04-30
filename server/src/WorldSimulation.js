@@ -115,6 +115,10 @@ export class WorldSimulation {
     console.log(`[WorldSim] ${agentId} left`);
   }
 
+  getPlayer(agentId) {
+    return this._players.get(agentId) ?? null;
+  }
+
   // ── Action processing ──────────────────────────────────────────────────────
 
   processAction(agentId, action) {

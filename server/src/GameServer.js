@@ -51,6 +51,11 @@ export class GameServer {
       const text = String(message ?? '').slice(0, 60);
       this._chatMsgs.set(agentId, { message: text, expiresAt: Date.now() + CHAT_TTL_MS });
       console.log(`[Chat] ${agentId}: "${text}"`);
+      const p = this._sim.getPlayer(agentId);
+      logAction(agentId, 'say', {
+        tileX: p?.tileX, tileY: p?.tileY, hp: p?.hp, energy: p?.energy,
+        gold: p?.gold, zone: p?.zone, events: `💬 "${text}"`,
+      });
     });
 
     socket.on('agent:target', ({ tileX, tileY, reason }) => {
@@ -69,15 +74,20 @@ export class GameServer {
           .filter(([id, c]) => id !== agentId && now < c.expiresAt)
           .map(([id, c]) => ({ agentId: id, message: c.message }));
         socket.emit('server:observation', obs);
-        logAction(agentId, action, {
-          tileX:    obs.player.tileX,
-          tileY:    obs.player.tileY,
-          hp:       obs.player.hp,
-          energy:   obs.player.energy,
-          gold:     obs.gold,
-          zone:     obs.player.zone,
-          events:   obs.recentEvents?.join(' | ') ?? '',
-        });
+        const events = obs.recentEvents?.join(' | ') ?? '';
+        const isMeaningful = action === 'interact' || action === 'eat' ||
+          action.startsWith('buy:') || events.length > 0;
+        if (isMeaningful) {
+          logAction(agentId, action, {
+            tileX:  obs.player.tileX,
+            tileY:  obs.player.tileY,
+            hp:     obs.player.hp,
+            energy: obs.player.energy,
+            gold:   obs.gold,
+            zone:   obs.player.zone,
+            events,
+          });
+        }
       }
     });
 
