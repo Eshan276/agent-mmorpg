@@ -1,6 +1,7 @@
 import { io }             from 'socket.io-client';
 import { TOOLS, SYSTEM_PROMPT } from './tools.js';
 import { buildObsPrompt } from './prompt.js';
+import { executeSwap }    from './wallet.js';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -36,10 +37,11 @@ function dirFromDelta(dx, dy) {
 }
 
 export class AgentLoop {
-  constructor({ serverUrl, provider, agentId }) {
+  constructor({ serverUrl, provider, agentId, wallet }) {
     this._serverUrl = serverUrl;
     this._provider  = provider;
     this._agentId   = agentId;
+    this._wallet    = wallet ?? null;
     this._socket    = null;
     this._snapshot  = null;
     this._running   = false;
@@ -52,7 +54,10 @@ export class AgentLoop {
 
     this._socket.on('connect', () => {
       console.log(`[Agent:${this._agentId}] connected`);
-      this._socket.emit('agent:register', { agentId: this._agentId });
+      this._socket.emit('agent:register', {
+        agentId:       this._agentId,
+        walletAddress: this._wallet?.address ?? null,
+      });
       this._running = true;
       this._loop();
     });
@@ -201,6 +206,42 @@ export class AgentLoop {
         };
       }
 
+      case 'swap': {
+        const snap = this._snapshot;
+        const contracts = snap.contractAddresses;
+        if (!contracts?.gameAMM || !contracts?.goldToken || !this._wallet) {
+          return { ok: false, error: 'Web3 not available — wallet or contract addresses missing' };
+        }
+        const { resourceId, direction, amount } = input;
+        try {
+          const result = await executeSwap({
+            wallet:      this._wallet,
+            ammAddress:  contracts.gameAMM,
+            goldAddress: contracts.goldToken,
+            resourceId,
+            direction,
+            amountUnits: amount,
+          });
+          if (result.ok) {
+            this._socket.emit('agent:swap_complete', {
+              txHash:    result.txHash,
+              resourceId,
+              direction,
+              amountIn:  result.amountIn,
+              amountOut: result.amountOut,
+            });
+          }
+          return result;
+        } catch (err) {
+          return { ok: false, error: err.message };
+        }
+      }
+
+      case 'get_prices': {
+        const snap = this._snapshot;
+        return { prices: snap.ammPrices ?? {}, note: 'GGLD per 1 unit of resource' };
+      }
+
       case 'check_status': {
         const snap = this._snapshot;
         return this._snapSummary(snap);
@@ -310,16 +351,18 @@ export class AgentLoop {
 
   _snapSummary(snap) {
     return {
-      hp:          snap.player.hp,
-      maxHp:       snap.player.maxHp,
-      energy:      snap.player.energy,
-      maxEnergy:   snap.player.maxEnergy,
-      gold:        snap.gold,
-      zone:        snap.player.zone,
-      position:    { tileX: snap.player.tileX, tileY: snap.player.tileY },
-      facing:      snap.facing ?? null,
-      inventory:   snap.inventory,
-      nearbyNodes: snap.nearbyNodes?.filter(n => !n.depleted) ?? [],
+      hp:           snap.player.hp,
+      maxHp:        snap.player.maxHp,
+      energy:       snap.player.energy,
+      maxEnergy:    snap.player.maxEnergy,
+      gold:         snap.gold,
+      goldBalance:  snap.goldBalance ?? null,
+      ammPrices:    snap.ammPrices ?? {},
+      zone:         snap.player.zone,
+      position:     { tileX: snap.player.tileX, tileY: snap.player.tileY },
+      facing:       snap.facing ?? null,
+      inventory:    snap.inventory,
+      nearbyNodes:  snap.nearbyNodes?.filter(n => !n.depleted) ?? [],
     };
   }
 }

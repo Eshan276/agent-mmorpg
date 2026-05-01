@@ -1,6 +1,7 @@
 import { Server }          from 'socket.io';
 import { WorldSimulation } from './WorldSimulation.js';
 import { logAction, flush } from './AxiomLogger.js';
+import { web3 }             from './Web3Manager.js';
 
 const RENDER_INTERVAL_MS = 200;
 const CHAT_TTL_MS = 6000; // bubbles last 6 seconds
@@ -33,17 +34,44 @@ export class GameServer {
       socket.emit('server:worldState', this._sim.buildRendererState());
     });
 
-    socket.on('agent:register', ({ agentId: id }) => {
+    socket.on('agent:register', ({ agentId: id, walletAddress }) => {
       role    = 'agent';
       agentId = id;
       this._agents.set(agentId, { socketId: socket.id });
-      this._sim.registerPlayer(agentId);
+      this._sim.registerPlayer(agentId, walletAddress ?? null);
+      // Mint starting gold to agent wallet (fire-and-forget)
+      if (walletAddress && web3.ready) {
+        web3.mintGold(walletAddress, 100n).catch(() => {});
+      }
       const obs = this._sim.buildObservation(agentId);
       const now = Date.now();
       obs.agentChat = [...this._chatMsgs.entries()]
         .filter(([cid, c]) => cid !== agentId && now < c.expiresAt)
         .map(([cid, c]) => ({ agentId: cid, message: c.message }));
       socket.emit('server:observation', obs);
+    });
+
+    // Agent reports a completed on-chain swap — server verifies and applies inventory effect
+    socket.on('agent:swap_complete', async ({ txHash, resourceId, direction, amountIn, amountOut }) => {
+      if (role !== 'agent' || !agentId) return;
+      const verified = await web3.verifySwap(txHash);
+      if (!verified?.ok) {
+        console.warn(`[Web3] swap not verified for ${agentId}: ${txHash}`);
+        return;
+      }
+      const player = this._sim.getPlayer(agentId);
+      if (!player) return;
+
+      if (direction === 'sell') {
+        // Agent sold resource → remove from inventory, gold balance updated via chain
+        player.removeItem(resourceId, Math.ceil(amountIn));
+        player.pushEvent(`Sold ${amountIn} ${resourceId} → ${amountOut.toFixed(2)} GGLD (on-chain)`);
+      } else {
+        // Agent bought resource → add to inventory
+        player.addItem(resourceId, Math.floor(amountOut));
+        player.pushEvent(`Bought ${Math.floor(amountOut)} ${resourceId} for ${amountIn} GGLD (on-chain)`);
+      }
+      console.log(`[Web3] swap verified for ${agentId}: ${direction} ${amountIn} ${resourceId} tx=${txHash}`);
     });
 
     socket.on('agent:chat', ({ message }) => {

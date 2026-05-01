@@ -1,7 +1,8 @@
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join }  from 'path';
-import { ServerPlayer, ITEM_DEFS, SHOP_SELL_PRICES, SHOP_BUY_PRICES } from './ServerPlayer.js';
+import { ServerPlayer, ITEM_DEFS } from './ServerPlayer.js';
+import { web3 } from './Web3Manager.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 
@@ -99,14 +100,15 @@ export class WorldSimulation {
 
   // ── Player management ──────────────────────────────────────────────────────
 
-  registerPlayer(agentId) {
+  registerPlayer(agentId, walletAddress = null) {
     const player = new ServerPlayer({
       agentId,
       spawnX: this._spawn.tileX,
       spawnY: this._spawn.tileY,
     });
+    player.walletAddress = walletAddress;
     this._players.set(agentId, player);
-    console.log(`[WorldSim] ${agentId} joined at (${player.tileX},${player.tileY})`);
+    console.log(`[WorldSim] ${agentId} joined at (${player.tileX},${player.tileY}) wallet=${walletAddress ?? 'none'}`);
     return player;
   }
 
@@ -264,6 +266,10 @@ export class WorldSimulation {
       const qty = Array.isArray(drop.qty) ? rollRange(drop.qty) : drop.qty;
       if (player.addItem(drop.itemId, qty)) {
         dropped.push(`${qty}x ${ITEM_DEFS[drop.itemId]?.name ?? drop.itemId}`);
+        // Mint on-chain resource token to agent wallet (fire-and-forget)
+        if (player.walletAddress) {
+          web3.mintResource(player.walletAddress, drop.itemId, qty).catch(() => {});
+        }
       }
     }
     if (dropped.length) player.totalHarvests += 1;
@@ -274,22 +280,8 @@ export class WorldSimulation {
   }
 
   _processMerchant(player) {
-    // Sell all sellable items for gold
-    const soldParts = [];
-    let earned = 0;
-    for (const slot of [...player.inventory]) {
-      const price = SHOP_SELL_PRICES[slot.id];
-      if (!price) continue;
-      earned += price * slot.qty;
-      soldParts.push(`${slot.qty}x ${slot.name}`);
-      player.removeItem(slot.id, slot.qty);
-    }
-    if (earned > 0) {
-      player.gold += earned;
-      player.pushEvent(`Sold ${soldParts.join(', ')} → +${earned} gold (total: ${player.gold})`);
-    } else {
-      player.pushEvent('[MERCHANT] Nothing to sell right now.');
-    }
+    // Old off-chain merchant removed — trading is now done via AMM on-chain.
+    player.pushEvent('[MERCHANT] Use the swap() tool to trade resources for GGLD via the AMM.');
     return { ok: true };
   }
 
@@ -309,30 +301,9 @@ export class WorldSimulation {
   }
 
   _processBuy(player, itemId) {
-    const price = SHOP_BUY_PRICES[itemId];
-    if (!price) {
-      player.pushEvent(`[MERCHANT] Cannot buy: ${itemId}`);
-      return { ok: false };
-    }
-    // Must be adjacent to (facing) the merchant
-    const [fdx, fdy] = DIR_OFFSETS[player.direction];
-    const fx = player.tileX + fdx, fy = player.tileY + fdy;
-    const obj = this._staticObjects.find(o => o.tileX === fx && o.tileY === fy && o.id === 'merchant');
-    if (!obj) {
-      player.pushEvent(`[MERCHANT] Not facing merchant`);
-      return { ok: false };
-    }
-    if (player.gold < price) {
-      player.pushEvent(`[MERCHANT] Need ${price}g for ${itemId}, have ${player.gold}g`);
-      return { ok: false };
-    }
-    if (!player.addItem(itemId)) {
-      player.pushEvent(`[MERCHANT] Inventory full`);
-      return { ok: false };
-    }
-    player.gold -= price;
-    player.pushEvent(`Bought ${ITEM_DEFS[itemId]?.name ?? itemId} for ${price}g (gold: ${player.gold})`);
-    return { ok: true };
+    // Off-chain buying removed — agents swap via AMM on-chain.
+    player.pushEvent(`[MERCHANT] Use swap() tool to buy ${itemId} via the AMM.`);
+    return { ok: false };
   }
 
   // ── Observation & renderer state ───────────────────────────────────────────
@@ -386,11 +357,22 @@ export class WorldSimulation {
     const events = [...player.recentEvents];
     player.recentEvents = [];
 
+    // Refresh on-chain gold balance (async, updates player cache for next tick)
+    if (web3.ready && player.walletAddress) {
+      web3.getGoldBalance(player.walletAddress)
+        .then(bal => { player.goldBalance = bal; })
+        .catch(() => {});
+    }
+
     return {
       tick: ++this._tick,
       player: player.toObservationPlayer(),
       inventory: player.inventory.map(s => ({ id: s.id, name: s.name, qty: s.qty })),
-      gold: player.gold,
+      // On-chain balance in human-readable GGLD (cached from last async refresh)
+      goldBalance: player.goldDisplay,
+      walletAddress: player.walletAddress,
+      contractAddresses: web3.ready ? web3.getContractAddresses() : null,
+      ammPrices: web3.ready ? web3.getCachedPrices() : {},
       facing: this._buildFacingInfo(fx, fy),
       nearbyNodes,
       nearbyItems,

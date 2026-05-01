@@ -2,10 +2,11 @@
 // Gives a compact, readable snapshot + situation alerts.
 export function buildObsPrompt(snap) {
   const { tileX, tileY, hp, maxHp, energy, maxEnergy, zone, direction } = snap.player;
-  const gold      = snap.gold ?? 0;
-  const inventory = snap.inventory ?? [];
-  const facing    = snap.facing;
-  const nodes     = snap.nearbyNodes?.filter(n => !n.depleted) ?? [];
+  const goldBalance = snap.goldBalance ?? null;
+  const inventory   = snap.inventory ?? [];
+  const facing      = snap.facing;
+  const nodes       = snap.nearbyNodes?.filter(n => !n.depleted) ?? [];
+  const ammPrices   = snap.ammPrices ?? {};
 
   const FOOD     = new Set(['meat','fish','honey','heart','life_potion','milk_pot','water_pot']);
   const SELLABLE = new Set(['grass','plank','branch','rock','bar_iron','bar_gold','gem_red','gem_green']);
@@ -29,11 +30,11 @@ export function buildObsPrompt(snap) {
   if (!facing && hp <= 60 && hasFood)
     alerts.push(`→ Call eat() — you have food and HP is low`);
 
-  if (!facing && hp <= 60 && !hasFood && gold >= 3)
-    alerts.push(`→ go_to(34,34,up) then buy food — you have ${gold}g`);
+  if (!facing && hp <= 60 && !hasFood)
+    alerts.push(`→ Low HP — call swap("fish","buy",1) or swap("meat","buy",1) to buy food, then eat()`);
 
   if (!facing && hasResources)
-    alerts.push(`→ go_to(34,34,up) then interact() to sell resources`);
+    alerts.push(`→ You have resources — call get_prices() then swap(resourceId,"sell",amount) to sell`);
 
   const node = nodes.length
     ? nodes.reduce((a, b) => {
@@ -49,14 +50,23 @@ export function buildObsPrompt(snap) {
     alerts.push(`→ No nodes in Shinobi Village — go_to(24,35,down) to enter Forest of Whispers`);
 
   // ── Compact state ─────────────────────────────────────────────────────────
+  const goldLine = goldBalance !== null
+    ? `GGLD: ${goldBalance} | `
+    : '';
+  const priceEntries = Object.entries(ammPrices);
+  const pricesLine = priceEntries.length
+    ? `AMM prices (GGLD/unit): ${priceEntries.map(([r, p]) => `${r}=${p}`).join(' ')}`
+    : null;
+
   const lines = [
     `Position: (${tileX},${tileY}) facing ${direction} | Zone: ${zone}`,
-    `HP: ${hp}/${maxHp} | Energy: ${energy}/${maxEnergy} | Gold: ${gold}g`,
+    `HP: ${hp}/${maxHp} | Energy: ${energy}/${maxEnergy} | ${goldLine}`,
     `Inventory: ${inventory.length ? inventory.map(i => `${i.name}×${i.qty}`).join(', ') : 'empty'}`,
     `Facing: ${facing ? `${facing.type}${facing.resourceType ? ' ('+facing.resourceType+')' : facing.id ? ' ('+facing.id+')' : ''}` : 'nothing'}`,
     `Nearby nodes: ${nodes.length ? nodes.map(n => `${n.resourceType}@(${n.tileX},${n.tileY})`).join(', ') : 'none'}`,
     `Recent events: ${snap.recentEvents?.join('; ') || 'none'}`,
   ];
+  if (pricesLine) lines.push(pricesLine);
 
   // Other agents presence and chat
   const others = snap.otherAgents ?? [];

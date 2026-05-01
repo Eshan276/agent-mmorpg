@@ -28,15 +28,10 @@ export const ITEM_DEFS = {
   gold_cup:     { name: 'Gold Cup',     type: 'treasure', stackable: false },
 };
 
-export const SHOP_SELL_PRICES = {
-  plank: 2, branch: 1, rock: 1, bar_iron: 6, gem_red: 12, gem_green: 10,
-  bar_gold: 18, meat: 1, fish: 1, honey: 2, grass: 1,
-};
-
-export const SHOP_BUY_PRICES = {
-  life_potion: 8, heart: 5, milk_pot: 6, water_pot: 4,
-  meat: 4, fish: 3, honey: 5, axe: 15, pickaxe: 15, sword: 20,
-};
+// Prices are now dynamic from AMM pools — these are kept for reference only.
+// Do not use for server-side gold arithmetic.
+export const SHOP_SELL_PRICES = {};
+export const SHOP_BUY_PRICES  = {};
 
 // ── ServerPlayer ─────────────────────────────────────────────────────────────
 export class ServerPlayer {
@@ -49,7 +44,10 @@ export class ServerPlayer {
     this.maxHp        = 100;
     this.energy       = 100;
     this.maxEnergy    = 100;
-    this.gold           = 0;
+    // goldBalance is a cached on-chain balance (BigInt wei); refreshed each observation build.
+    // Falls back to 0 when Web3 is disabled.
+    this.goldBalance  = 0n;
+    this.walletAddress = null; // set by GameServer on agent:register
     this.alive          = true;
     this.zone           = 'Shinobi Village';
     this.totalHarvests  = 0;
@@ -62,6 +60,11 @@ export class ServerPlayer {
     this.addItem('pickaxe');
     // ring buffer — cleared after each observation build
     this.recentEvents = [];
+  }
+
+  // Human-readable GGLD amount (divide by 1e18, 2 decimal places)
+  get goldDisplay() {
+    return (Number(this.goldBalance) / 1e18).toFixed(2);
   }
 
   pushEvent(msg) {

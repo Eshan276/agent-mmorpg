@@ -39,19 +39,37 @@ export const TOOLS = [
     },
   },
   {
-    name: 'buy',
-    description: 'Buy an item from the merchant. You must be standing at (34,34) facing up first (go_to tileX=34 tileY=34 facingDir="up"). You can also buy after selling (same position).',
+    name: 'swap',
+    description: 'Trade resources for GGLD (sell) or GGLD for resources (buy) via the on-chain AMM. Prices move dynamically — call get_prices() first to check current rates.',
     input_schema: {
       type: 'object',
       properties: {
-        itemId: {
+        resourceId: {
           type: 'string',
-          enum: ['fish', 'meat', 'heart', 'life_potion', 'honey', 'water_pot'],
-          description: 'HP items: fish=3g(+10HP)  meat=4g(+15HP)  heart=5g(+20HP)  life_potion=8g(+40HP) | Energy items: honey=5g(+20EN)  water_pot=4g(+15EN)',
+          enum: ['plank', 'branch', 'rock', 'grass', 'bar_iron', 'bar_gold', 'gem_red', 'gem_green', 'fish', 'meat', 'honey'],
+          description: 'The resource to swap',
+        },
+        direction: {
+          type: 'string',
+          enum: ['sell', 'buy'],
+          description: '"sell" = resource → GGLD, "buy" = GGLD → resource',
+        },
+        amount: {
+          type: 'number',
+          description: 'How many units to swap (whole numbers)',
         },
         reason: { type: 'string' },
       },
-      required: ['itemId', 'reason'],
+      required: ['resourceId', 'direction', 'amount', 'reason'],
+    },
+  },
+  {
+    name: 'get_prices',
+    description: 'Get current AMM prices for all resources in GGLD per unit. Prices move with supply/demand — check before selling.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: [],
     },
   },
   {
@@ -123,17 +141,20 @@ You can call multiple tools in sequence to complete a goal — keep going until 
 - Interacting with merchant or chest costs 10 energy. Harvesting nodes costs 0 energy.
 - Die at 0 HP → respawn at (40,35), lose nothing
 
-### Economy
-- Sell: go_to tileX=34 tileY=34 facingDir="up" → interact → sells ALL resources automatically
-- Buy: stand at same spot (34,34) facing up → buy(itemId) — no extra movement needed after selling
-- Sell prices: grass=1g, plank=2g, branch=1g, rock=1g, bar_iron=6g, gem_red=12g, gem_green=10g
-- Buy HP: fish=3g(+10HP) meat=4g(+15HP) heart=5g(+20HP) life_potion=8g(+40HP)
-- Buy Energy: honey=5g(+20EN) water_pot=4g(+15EN)
+### Economy — On-chain AMM
+- All trading happens via on-chain AMM pools on Base Sepolia — no merchant visit needed
+- call get_prices() to see current GGLD rates before trading
+- Sell resources: swap(resourceId, "sell", amount) — resource tokens → GGLD
+- Buy consumables: swap(itemId, "buy", amount) — GGLD → item (fish/meat/honey etc.)
+- Prices move with supply and demand: flooding the market with planks lowers the plank price
+- You start with 100 GGLD — check your goldBalance in the observation
+- HP items: fish(+10HP), meat(+15HP), heart(+20HP), life_potion(+40HP)
+- Energy items: honey(+20EN), water_pot(+15EN)
 
 ## How to play well
 1. Enter a hostile zone, find nodes in nearbyNodes, harvest them
-2. When inventory has resources, go sell
-3. Keep HP above 60 — buy and eat food
+2. When inventory has resources, call get_prices() then swap() to sell
+3. Keep HP above 60 — swap() to buy food, then eat()
 4. Repeat
 
 ## Talking — REQUIRED
@@ -146,6 +167,6 @@ You MUST call say() at least once per session. Speak like a character in the wor
 Keep messages short and in-character. say() is free — use it.
 
 ## Tool sequencing example
-- say("Time to harvest!") → go_to(24,35, down) → [explore] → go_to(nodeX, nodeY+1, up) → interact() → say("Got some planks") → go_to(34,34, up) → interact() → done()
+- say("Time to harvest!") → go_to(24,35, down) → [explore] → go_to(nodeX, nodeY+1, up) → interact() → say("Got some planks") → get_prices() → swap("plank", "sell", 3) → done()
 
 Call done() when you have finished your current goal or are stuck and need a fresh look.`;

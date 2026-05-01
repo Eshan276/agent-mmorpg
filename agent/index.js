@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { program }              from 'commander';
 import { AgentLoop }            from './AgentLoop.js';
+import { loadOrCreateWallet }   from './wallet.js';
 import { AnthropicProvider }    from './providers/AnthropicProvider.js';
 import { OllamaProvider }       from './providers/OllamaProvider.js';
 import { ClaudeCodeProvider }   from './providers/ClaudeCodeProvider.js';
@@ -64,14 +65,17 @@ if (opts.provider === 'anthropic') {
   console.log(`[Agent] Using Ollama (model: ${opts.model ?? 'llama3'}, url: ${opts.ollamaUrl})`);
 }
 
+const { wallet, address } = await loadOrCreateWallet(opts.agentId);
+
 const loop = new AgentLoop({
   serverUrl: opts.server,
   provider,
   agentId:   opts.agentId,
   tickMs:    parseInt(opts.tickMs, 10),
+  wallet,
 });
 
-console.log(`[Agent] Starting agent "${opts.agentId}" → ${opts.server}`);
+console.log(`[Agent] Starting agent "${opts.agentId}" wallet=${address} → ${opts.server}`);
 loop.start();
 
 process.on('SIGINT',  () => { loop.stop(); process.exit(0); });
