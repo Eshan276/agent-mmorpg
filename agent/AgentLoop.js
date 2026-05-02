@@ -37,16 +37,22 @@ function dirFromDelta(dx, dy) {
 }
 
 export class AgentLoop {
-  constructor({ serverUrl, provider, agentId, wallet }) {
+  constructor({ serverUrl, provider, agentId, wallet, persona }) {
     this._serverUrl = serverUrl;
     this._provider  = provider;
     this._agentId   = agentId;
     this._wallet    = wallet ?? null;
+    this._persona   = persona ?? '';
     this._socket    = null;
     this._snapshot  = null;
     this._running   = false;
     // Resolves the pending _act() promise when a new observation arrives
     this._obsResolve = null;
+  }
+
+  _systemPrompt() {
+    if (!this._persona) return SYSTEM_PROMPT;
+    return `## Your personality\n${this._persona}\nStay in character at all times. Let your personality colour your say() messages and trade decisions.\n\n${SYSTEM_PROMPT}`;
   }
 
   start() {
@@ -117,7 +123,7 @@ export class AgentLoop {
         break;
       }
 
-      const response = await this._provider.completeWithTools(SYSTEM_PROMPT, messages, TOOLS);
+      const response = await this._provider.completeWithTools(this._systemPrompt(), messages, TOOLS);
       messages.push({ role: 'assistant', content: response.content });
 
       // Collect all tool calls from this response
@@ -213,8 +219,21 @@ export class AgentLoop {
           return { ok: false, error: 'Web3 not available — wallet or contract addresses missing' };
         }
         const { resourceId, direction, amount } = input;
+
+        // Guard: don't burn gas selling resources we don't have in inventory.
+        if (direction === 'sell') {
+          const have = (snap.inventory ?? []).find(s => s.id === resourceId)?.qty ?? 0;
+          if (have < amount) {
+            return { ok: false, error: `Inventory has only ${have} ${resourceId}, cannot sell ${amount}. Harvest more first.` };
+          }
+        }
+
+        // Wait for the swap_complete observation push so the agent sees the new inventory.
+        const obsPromise = new Promise(r => { this._obsResolve = r; });
+
+        let result;
         try {
-          const result = await executeSwap({
+          result = await executeSwap({
             wallet:      this._wallet,
             ammAddress:  contracts.gameAMM,
             goldAddress: contracts.goldToken,
@@ -222,19 +241,25 @@ export class AgentLoop {
             direction,
             amountUnits: amount,
           });
-          if (result.ok) {
-            this._socket.emit('agent:swap_complete', {
-              txHash:    result.txHash,
-              resourceId,
-              direction,
-              amountIn:  result.amountIn,
-              amountOut: result.amountOut,
-            });
-          }
-          return result;
         } catch (err) {
+          this._obsResolve = null;
           return { ok: false, error: err.message };
         }
+
+        if (result.ok) {
+          this._socket.emit('agent:swap_complete', {
+            txHash:    result.txHash,
+            resourceId,
+            direction,
+            amountIn:  result.amountIn,
+            amountOut: result.amountOut,
+          });
+          // Wait up to 5s for the server to verify on-chain and push fresh inventory.
+          await Promise.race([obsPromise, new Promise(r => setTimeout(r, 5000))]);
+        } else {
+          this._obsResolve = null;
+        }
+        return result;
       }
 
       case 'get_prices': {

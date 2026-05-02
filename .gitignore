@@ -10,6 +10,7 @@ contracts/node_modules/
 .env
 .env.*
 agent/wallets/
+agent/config/
 
 # Hardhat artifacts (reproducible via compile)
 contracts/artifacts/

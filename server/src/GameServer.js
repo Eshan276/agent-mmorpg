@@ -72,6 +72,16 @@ export class GameServer {
         player.pushEvent(`Bought ${Math.floor(amountOut)} ${resourceId} for ${amountIn} GGLD (on-chain)`);
       }
       console.log(`[Web3] swap verified for ${agentId}: ${direction} ${amountIn} ${resourceId} tx=${txHash}`);
+
+      // Push a fresh observation so the agent sees the updated inventory immediately
+      const obs = this._sim.buildObservation(agentId);
+      if (obs) {
+        const now = Date.now();
+        obs.agentChat = [...this._chatMsgs.entries()]
+          .filter(([id, c]) => id !== agentId && now < c.expiresAt)
+          .map(([id, c]) => ({ agentId: id, message: c.message }));
+        socket.emit('server:observation', obs);
+      }
     });
 
     socket.on('agent:chat', ({ message }) => {

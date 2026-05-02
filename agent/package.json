@@ -4,13 +4,17 @@
   "private": true,
   "type": "module",
   "bin": {
+    "agentx":       "./cli/index.js",
     "mmorpg-agent": "./index.js"
   },
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "cli":   "node cli/index.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
+    "@inquirer/prompts": "^8.4.2",
+    "chalk": "^4.1.2",
     "commander": "^12.1.0",
     "ethers": "^6.16.0",
     "socket.io-client": "^4.7.5"
