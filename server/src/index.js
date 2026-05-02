@@ -7,7 +7,16 @@ const PORT = process.env.PORT || 3000;
 
 const httpServer = createServer((req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
-  if (url.pathname === '/api/logs') return logsHandler(req, res, url);
+  if (url.pathname === '/api/logs')   return logsHandler(req, res, url);
+  if (url.pathname === '/api/prices') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    return res.end(JSON.stringify({
+      ready:     web3.ready,
+      prices:    web3.ready ? web3.getCachedPrices() : {},
+      history:   web3.ready ? web3.getPriceHistory()  : {},
+      contracts: web3.ready ? web3.getContractAddresses() : null,
+    }));
+  }
   res.writeHead(404).end();
 });
 

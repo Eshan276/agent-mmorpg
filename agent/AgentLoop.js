@@ -106,7 +106,7 @@ export class AgentLoop {
   async _runSession() {
     const snap = this._snapshot;
     const { tileX, tileY, hp, energy, zone } = snap.player;
-    console.log(`\n[Agent:${this._agentId}] ── new session ── pos=(${tileX},${tileY}) hp=${hp} en=${energy} gold=${snap.gold} zone=${zone}`);
+    console.log(`\n[Agent:${this._agentId}] ── new session ── pos=(${tileX},${tileY}) hp=${hp} en=${energy} GGLD=${snap.goldBalance ?? '?'} zone=${zone}`);
 
     const messages = [{ role: 'user', content: buildObsPrompt(snap) }];
     let toolCallCount = 0;

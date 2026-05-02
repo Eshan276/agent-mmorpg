@@ -33,8 +33,11 @@ class Web3Manager {
     this._wallet     = null;
     this._gold       = null;
     this._amm        = null;
-    this._priceCache = {}; // resourceId → float, refreshed every 30s
+    this._priceCache   = {}; // resourceId → float, refreshed every 30s
+    this._priceHistory = {}; // resourceId → [{ t: ms, p: float }], capped at HISTORY_MAX
   }
+
+  static HISTORY_MAX = 240; // 240 samples × 30s = 2 hours of history
 
   async init() {
     const rpcUrl  = process.env.BASE_SEPOLIA_RPC_URL;
@@ -100,6 +103,8 @@ class Web3Manager {
 
   // ── Prices ─────────────────────────────────────────────────────────────────
 
+  // Returns { resourceId → price } — only includes successful fetches.
+  // Failed fetches are omitted so callers can fall back to the previous cached value.
   async getAllPrices() {
     if (!this._ready) return {};
     const prices = {};
@@ -109,7 +114,7 @@ class Web3Manager {
           const rid = ethers.encodeBytes32String(id);
           const p   = await this._amm.getPrice(rid);
           prices[id] = Number((Number(p) / 1e18).toFixed(4));
-        } catch { prices[id] = 0; }
+        } catch { /* skip — caller keeps previous cached value */ }
       })
     );
     return prices;
@@ -120,7 +125,26 @@ class Web3Manager {
   }
 
   _refreshPrices() {
-    this.getAllPrices().then(p => { this._priceCache = p; }).catch(() => {});
+    this.getAllPrices().then(prices => {
+      const t = Date.now();
+      for (const [id, p] of Object.entries(prices)) {
+        // Merge into cache (preserves any previous values for resources that failed this tick)
+        this._priceCache[id] = p;
+        if (!this._priceHistory[id]) this._priceHistory[id] = [];
+        const arr = this._priceHistory[id];
+        arr.push({ t, p });
+        if (arr.length > Web3Manager.HISTORY_MAX) arr.shift();
+      }
+    }).catch(() => {});
+  }
+
+  // Returns a sanitised copy: zero values (RPC failures from earlier versions) are stripped.
+  getPriceHistory() {
+    const out = {};
+    for (const [id, arr] of Object.entries(this._priceHistory)) {
+      out[id] = arr.filter(pt => pt.p > 0);
+    }
+    return out;
   }
 
   // ── Swap verification ──────────────────────────────────────────────────────

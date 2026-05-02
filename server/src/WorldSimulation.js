@@ -266,10 +266,6 @@ export class WorldSimulation {
       const qty = Array.isArray(drop.qty) ? rollRange(drop.qty) : drop.qty;
       if (player.addItem(drop.itemId, qty)) {
         dropped.push(`${qty}x ${ITEM_DEFS[drop.itemId]?.name ?? drop.itemId}`);
-        // Mint on-chain resource token to agent wallet (fire-and-forget)
-        if (player.walletAddress) {
-          web3.mintResource(player.walletAddress, drop.itemId, qty).catch(() => {});
-        }
       }
     }
     if (dropped.length) player.totalHarvests += 1;

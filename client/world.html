@@ -175,6 +175,40 @@
     .score-harvests { color: #aaffaa; margin-left: 4px; font-size: 9px; }
     .scores-empty { color: #444; font-size: 11px; margin-top: 20px; text-align: center; }
 
+    /* ── Shop tab ── */
+    #shop-controls {
+      display: flex; gap: 6px; margin-bottom: 10px; align-items: center; flex-shrink: 0;
+    }
+    #shop-status { flex: 1; font-size: 10px; color: #88aaff; }
+    #shop-refresh {
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 5px; color: #aaa; font: 10px monospace;
+      padding: 5px 8px; cursor: pointer;
+    }
+    #shop-refresh:hover { background: rgba(255,255,255,0.12); }
+    #shop-list { flex: 1; }
+    .shop-row {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 8px; align-items: center;
+      padding: 7px 8px; margin-bottom: 4px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.07); border-radius: 5px;
+      font-size: 11px;
+    }
+    .shop-name { color: #ddd; font-weight: bold; min-width: 70px; }
+    .shop-price { color: #ffd700; font-family: monospace; text-align: right; }
+    .shop-spark { width: 100%; height: 22px; display: block; }
+    .shop-spark-empty { font-size: 9px; color: #445; text-align: center; }
+    .shop-empty { color: #444; font-size: 11px; margin-top: 20px; text-align: center; }
+    #shop-contracts {
+      margin-top: 10px; padding-top: 10px;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      font-size: 9px; color: #556; word-break: break-all; line-height: 1.5;
+    }
+    #shop-contracts a { color: #6688bb; text-decoration: none; }
+    #shop-contracts a:hover { text-decoration: underline; }
+
     /* ── Tooltip ── */
     #tooltip {
       display: none; position: fixed; z-index: 100; width: 200px;
@@ -216,6 +250,7 @@
       <div id="tabs">
         <button class="tab-btn active" data-tab="agents">Agents</button>
         <button class="tab-btn"        data-tab="scores">Scores</button>
+        <button class="tab-btn"        data-tab="shop">Shop</button>
         <button class="tab-btn"        data-tab="logs">Logs</button>
       </div>
     </div>
@@ -226,6 +261,15 @@
 
     <div id="tab-scores" class="tab-pane">
       <div id="scores-list"><div class="scores-empty">No agents online</div></div>
+    </div>
+
+    <div id="tab-shop" class="tab-pane">
+      <div id="shop-controls">
+        <div id="shop-status">—</div>
+        <button id="shop-refresh">↻</button>
+      </div>
+      <div id="shop-list"><div class="shop-empty">Open Shop tab to load AMM prices</div></div>
+      <div id="shop-contracts"></div>
     </div>
 
     <div id="tab-logs" class="tab-pane">
@@ -257,7 +301,95 @@
       tb.classList.add('active');
       document.getElementById('tab-' + tb.dataset.tab).classList.add('active');
       if (tb.dataset.tab === 'logs') fetchLogs();
+      if (tb.dataset.tab === 'shop') fetchShop();
     });
+
+    // ── Shop / AMM prices ──
+    async function fetchShop() {
+      const list    = document.getElementById('shop-list');
+      const status  = document.getElementById('shop-status');
+      const conts   = document.getElementById('shop-contracts');
+      status.textContent = 'Loading…';
+      try {
+        const res  = await fetch('/api/prices');
+        const data = await res.json();
+        if (!data.ready) {
+          status.textContent = 'Web3 disabled (no chain connection)';
+          list.innerHTML = '<div class="shop-empty">AMM offline — set BASE_SEPOLIA_RPC_URL + SERVER_PRIVATE_KEY in server/.env</div>';
+          conts.innerHTML = '';
+          return;
+        }
+        const entries = Object.entries(data.prices).sort((a, b) => b[1] - a[1]);
+        if (entries.length === 0) {
+          status.textContent = 'No pools seeded';
+          list.innerHTML = '<div class="shop-empty">No prices yet — run seed.js</div>';
+          return;
+        }
+        status.textContent = `${entries.length} pools · auto-refresh 30s`;
+        const history = data.history ?? {};
+        list.innerHTML = entries.map(([id, price]) => {
+          const pts = history[id] ?? [];
+          const sparkId = `spark-${id}`;
+          const sparkHtml = pts.length >= 2
+            ? `<canvas id="${sparkId}" class="shop-spark"></canvas>`
+            : `<div class="shop-spark-empty">collecting…</div>`;
+          return `
+            <div class="shop-row">
+              <span class="shop-name">${id}</span>
+              ${sparkHtml}
+              <span class="shop-price">${price.toFixed(4)} GGLD</span>
+            </div>`;
+        }).join('');
+        // Draw sparklines after DOM update
+        for (const [id] of entries) {
+          const pts = history[id] ?? [];
+          if (pts.length < 2) continue;
+          drawSparkline(`spark-${id}`, pts);
+        }
+        const c = data.contracts ?? {};
+        conts.innerHTML = `
+          <div>GGLD: <a href="https://sepolia.basescan.org/address/${c.goldToken}" target="_blank">${c.goldToken ?? '—'}</a></div>
+          <div>AMM: <a href="https://sepolia.basescan.org/address/${c.gameAMM}"  target="_blank">${c.gameAMM  ?? '—'}</a></div>
+        `;
+      } catch (err) {
+        status.textContent = '';
+        list.innerHTML = `<div class="shop-empty">Error: ${err.message}</div>`;
+      }
+    }
+    function drawSparkline(canvasId, pts) {
+      const c = document.getElementById(canvasId);
+      if (!c) return;
+      const dpr = window.devicePixelRatio || 1;
+      const w = c.clientWidth, h = c.clientHeight;
+      c.width  = w * dpr;
+      c.height = h * dpr;
+      const ctx = c.getContext('2d');
+      ctx.scale(dpr, dpr);
+      const ys = pts.map(p => p.p);
+      const lo = Math.min(...ys), hi = Math.max(...ys);
+      const range = (hi - lo) || 1;
+      const last = ys[ys.length - 1], first = ys[0];
+      const trendColor = last >= first ? '#4caf50' : '#e74c3c';
+      // Line
+      ctx.strokeStyle = trendColor;
+      ctx.lineWidth   = 1.2;
+      ctx.beginPath();
+      pts.forEach((pt, i) => {
+        const x = (i / (pts.length - 1)) * w;
+        const y = h - ((pt.p - lo) / range) * (h - 2) - 1;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      // Fill under line
+      ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.closePath();
+      ctx.fillStyle = trendColor + '22';
+      ctx.fill();
+    }
+    document.getElementById('shop-refresh').addEventListener('click', fetchShop);
+    // Auto-refresh while shop tab is open
+    setInterval(() => {
+      if (document.getElementById('tab-shop').classList.contains('active')) fetchShop();
+    }, 30000);
 
     // ── Logs ──
     async function fetchLogs() {
