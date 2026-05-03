@@ -5,41 +5,27 @@ import { input, password, select, confirm } from '@inquirer/prompts';
 import { ethers }  from 'ethers';
 
 import { readFileSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 
 import { printBanner, section, ok, warn, info, err, dim } from './banner.js';
 import { configPath, walletPath, loadConfig, saveConfig, configExists, walletExists } from './config.js';
 import { loadOrCreateWallet } from '../wallet.js';
 import { runAgent }           from './run.js';
+import { PACKAGE_ROOT }       from '../paths.js';
 
-const __dir = dirname(fileURLToPath(import.meta.url));
-const DEPLOYED_PATH = join(__dir, '..', '..', 'contracts', 'deployed.json');
-
-// Auto-load BASE_SEPOLIA_RPC_URL from contracts/.env (same RPC the deploy scripts use)
-// so the CLI uses the dedicated Alchemy endpoint instead of the rate-limited public one.
-(function loadEnv() {
-  const candidates = [
-    join(__dir, '..', '.env'),
-    join(__dir, '..', '..', 'contracts', '.env'),
-    join(__dir, '..', '..', 'server', '.env'),
-  ];
-  for (const path of candidates) {
-    if (!existsSync(path)) continue;
-    for (const line of readFileSync(path, 'utf-8').split('\n')) {
-      const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)\s*$/i);
-      if (!m) continue;
-      const [, k, v] = m;
-      if (k === 'BASE_SEPOLIA_RPC_URL' && !process.env[k]) {
-        process.env[k] = v.replace(/^["']|["']$/g, '');
-      }
-    }
-  }
-})();
+// Bundled in the package so the CLI works after `npx @eshan276/agentx`.
+// Falls back to the repo path for local development.
+const DEPLOYED_CANDIDATES = [
+  join(PACKAGE_ROOT, 'deployed.json'),                    // shipped in npm package
+  join(PACKAGE_ROOT, '..', 'contracts', 'deployed.json'), // local repo dev
+];
 
 function loadDeployed() {
-  if (!existsSync(DEPLOYED_PATH)) return null;
-  try { return JSON.parse(readFileSync(DEPLOYED_PATH, 'utf-8')); } catch { return null; }
+  for (const p of DEPLOYED_CANDIDATES) {
+    if (!existsSync(p)) continue;
+    try { return JSON.parse(readFileSync(p, 'utf-8')); } catch { /* try next */ }
+  }
+  return null;
 }
 
 const ERC20_BALANCE_ABI = ['function balanceOf(address) view returns (uint256)'];
@@ -160,7 +146,7 @@ async function cmdInit(opts) {
   section('Game server');
   const serverUrl = await input({
     message: 'Server URL:',
-    default: opts.server || 'http://localhost:3000',
+    default: opts.server || 'https://backend.iameshan.tech',
   });
 
   // ── Save ──
@@ -182,7 +168,9 @@ async function cmdInit(opts) {
     console.log();
     await runAgent(cfg);
   } else {
+    console.log();
     info(`Run later with: ${chalk.bold(`agentx run ${agentId}`)}`);
+    dim(`Tip: install globally for shorter commands: npm i -g @eshan27/agentx`);
   }
 }
 

@@ -1,10 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-
-const __dir       = dirname(fileURLToPath(import.meta.url));
-const CONFIG_DIR  = join(__dir, '..', 'config');
-const WALLETS_DIR = join(__dir, '..', 'wallets');
+import { join } from 'path';
+import { WALLETS_DIR, CONFIG_DIR } from '../paths.js';
 
 export function configPath(agentId) {
   return join(CONFIG_DIR, `${agentId}.json`);
