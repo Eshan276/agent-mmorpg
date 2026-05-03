@@ -344,7 +344,10 @@ export class WorldSimulation {
     for (const [id, p] of this._players) {
       if (id !== agentId) {
         otherAgents.push({
-          agentId: id, tileX: p.tileX, tileY: p.tileY,
+          agentId:   id,
+          ensName:   p.ensName ?? null,
+          axlPeerId: p.axlPeerId ?? null,
+          tileX: p.tileX, tileY: p.tileY,
           hp: p.hp, zone: p.zone,
         });
       }
@@ -411,9 +414,11 @@ export class WorldSimulation {
         maxEnergy: p.maxEnergy,
         gold:           p.goldDisplay,
         walletAddress:  p.walletAddress,
+        ensName:        p.ensName,        // real ENS name (or null until resolved)
         zone:           p.zone,
         alive:          p.alive,
         totalHarvests:  p.totalHarvests,
+        totalSwaps:     p.totalSwaps,
         inventory:      p.inventory.map(s => ({ id: s.id, name: s.name, qty: s.qty })),
       })),
       worldItems: [...this._worldItems.values()].map(wi => ({

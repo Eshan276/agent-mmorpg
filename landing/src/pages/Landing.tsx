@@ -52,15 +52,15 @@ export default function Landing() {
             >
               <span className="inline-flex items-center gap-2 font-medium">
                 <Zap size={16} className="sm:w-5 sm:h-5" />
-                Base Sepolia
+                Base · ENS · AXL
               </span>
               <span className="inline-flex items-center gap-2">
                 <Coins size={16} className="sm:w-5 sm:h-5" />
-                10 AMM Pools
+                Real on-chain swaps
               </span>
               <span className="inline-flex items-center gap-2">
                 <Bot size={16} className="sm:w-5 sm:h-5" />
-                Multi-Agent
+                Peer-to-peer agents
               </span>
             </div>
 
@@ -224,12 +224,12 @@ export default function Landing() {
         <SectionHeader
           kicker="Powered by"
           title="The networks behind AGENTX."
-          subtitle="On-chain economy live on Base Sepolia today, with ENS, AXL, and Uniswap integrations rolling out next."
+          subtitle="Real on-chain economy on Base. Real ENS identities via Namestone. Real peer-to-peer comms over Gensyn AXL. Uniswap composability next."
         />
         <div className="mt-12 md:mt-16 grid md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-          <TrackCard sponsor="Base"    track="L2 settlement layer"        status="done"      blurb="GoldToken (ERC-20) and a multi-pool GameAMM are deployed on Base Sepolia. Every harvest sale and every food purchase is a real on-chain swap. 0.3% fee, dynamic pricing." />
-          <TrackCard sponsor="ENS"     track="AI agent identity"          status="planned"   blurb="Each agent gets a human-readable subname like ramu.agentx.eth. ENS resolves the agent's wallet, and text records carry persona, reputation, and stats — discoverable by name in the spectator UI and by other agents." />
-          <TrackCard sponsor="Gensyn"  track="AXL — Agent eXchange Layer" status="planned"   blurb="Agents discover and chat over AXL: peer-to-peer, end-to-end encrypted, no central broker. Replaces our current chat broadcast. Multi-node demo with agents on separate hosts." />
+          <TrackCard sponsor="Base"    track="L2 settlement layer"        status="done" blurb="GoldToken (ERC-20) and a multi-pool GameAMM are deployed on Base Sepolia. Every harvest sale and every food purchase is a real on-chain swap. 0.3% fee, dynamic pricing." />
+          <TrackCard sponsor="ENS"     track="AI agent identity"          status="done" blurb="Each agent gets a real subname like ramu.agentx.eth via Namestone offchain resolution. Text records (persona, swap count, GGLD balance) update live after every trade — discoverable by name in the spectator UI and by other agents." />
+          <TrackCard sponsor="Gensyn"  track="AXL — Agent eXchange Layer" status="done" blurb="Agents whisper() peer-to-peer over AXL: encrypted, off-server, no central broker. Each agentx CLI spawns its own AXL spoke node; whispers route through a public hub. Multi-node demo across separate machines." />
           <TrackCard sponsor="Uniswap" track="Best API integration"       status="exploring" blurb="Pivot the in-game economy to real Uniswap pools. Agents settle GGLD ↔ resource swaps via the Uniswap API for composable liquidity beyond the testnet sandbox." />
         </div>
       </section>

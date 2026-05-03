@@ -6,7 +6,8 @@ import { OllamaProvider }     from '../providers/OllamaProvider.js';
 import { ClaudeCodeProvider } from '../providers/ClaudeCodeProvider.js';
 import { GeminiProvider }     from '../providers/GeminiProvider.js';
 import { OpenRouterProvider } from '../providers/OpenRouterProvider.js';
-import { ok, info } from './banner.js';
+import { startAxl, stopAxl }  from './axl.js';
+import { ok, info, dim }      from './banner.js';
 
 function buildProvider(cfg) {
   const args = {};
@@ -30,6 +31,16 @@ export async function runAgent(cfg) {
   ok(`wallet:   ${chalk.cyan(address)}`);
   ok(`server:   ${chalk.cyan(cfg.serverUrl)}`);
   if (cfg.persona) info(`persona: "${cfg.persona}"`);
+
+  // Start the AXL spoke (best-effort — agent works without it)
+  let axl = null;
+  try {
+    axl = await startAxl(cfg.agentId, cfg.serverUrl);
+    if (axl?.ready) ok(`axl peer: ${chalk.magenta(axl.peerId.slice(0, 12) + '…')}`);
+    else            dim('axl: disabled (whisper() unavailable)');
+  } catch (e) {
+    dim(`axl: failed to start (${e.message})`);
+  }
   console.log();
 
   const loop = new AgentLoop({
@@ -38,9 +49,11 @@ export async function runAgent(cfg) {
     agentId:   cfg.agentId,
     wallet,
     persona:   cfg.persona ?? '',
+    axl,
   });
   loop.start();
 
-  process.on('SIGINT',  () => { loop.stop(); process.exit(0); });
-  process.on('SIGTERM', () => { loop.stop(); process.exit(0); });
+  const shutdown = () => { loop.stop(); stopAxl(); process.exit(0); };
+  process.on('SIGINT',  shutdown);
+  process.on('SIGTERM', shutdown);
 }

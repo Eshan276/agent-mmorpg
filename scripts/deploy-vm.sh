@@ -21,6 +21,8 @@ if [ ! -f .env ]; then
   echo "✗ .env not found in $(pwd) — create it first"
   echo "  required: SERVER_PRIVATE_KEY, BASE_SEPOLIA_RPC_URL"
   echo "  optional: AXIOM_TOKEN, AXIOM_DATASET, AXIOM_ORG_ID"
+  echo "  optional: ENS_PARENT, SEPOLIA_ENS_RPC_URL"
+  echo "  optional: AXL_HUB_ADDRESS, AXL_HUB_PEER_ID  (run scripts/axl-setup.sh first)"
   exit 1
 fi
 
@@ -34,8 +36,8 @@ if [ ! -f nginx/nginx.conf ]; then
   exit 1
 fi
 
-echo "→ starting container"
-docker compose up -d
+echo "→ starting app + nginx (axl-hub stays out — start it via scripts/axl-setup.sh)"
+docker compose up -d app nginx
 
 echo "→ tailing logs (Ctrl+C to detach)"
-docker compose logs -f --tail 50
+docker compose logs -f --tail 50 app nginx

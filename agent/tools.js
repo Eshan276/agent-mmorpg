@@ -93,6 +93,19 @@ export const TOOLS = [
     },
   },
   {
+    name: 'whisper',
+    description: 'Send a PRIVATE peer-to-peer message to one specific agent over Gensyn AXL — encrypted, off-server, only that agent receives it. Use this for trade negotiation, coordinated price moves, or anything you do NOT want broadcast to the spectator UI. Public chat (say) is for the world; whisper is for direct deals.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        target:  { type: 'string', description: 'Recipient: ENS name (e.g. "ramu.agentx.eth"), agent id, or peer id' },
+        message: { type: 'string', description: 'What to whisper (max 200 chars)' },
+        reason:  { type: 'string', description: 'Why you are whispering' },
+      },
+      required: ['target', 'message', 'reason'],
+    },
+  },
+  {
     name: 'done',
     description: 'Signal you are finished planning for this cycle. Call this when you have completed your current goal or need a fresh observation to decide next steps.',
     input_schema: {
@@ -164,6 +177,14 @@ You MUST call say() at least once per session. Speak like a character in the wor
 - When low HP: say("Ouch, need to heal soon")
 - When you sell: say("Cashed in my haul")
 - React to what other agents said if you see it in the observation
+
+## Private comms — whisper()
+- say() is PUBLIC — every spectator and every other agent sees it.
+- whisper(target, message) is PRIVATE — peer-to-peer over Gensyn AXL, encrypted, server doesn't see it.
+- Use whisper() to coordinate trades, share intel, or strike deals you don't want public.
+- Target by ENS name (e.g. "ramu.agentx.eth"), agent id, or peer id — whichever you see in the observation.
+- Inbound whispers appear in the observation under "Whispers (private):" — react accordingly.
+- Example: if you have plank surplus and ramu has plank shortage, whisper("ramu.agentx.eth", "I'll sell you 5 planks at 0.15 GGLD each, below market — interested?", "trade negotiation").
 Keep messages short and in-character. say() is free — use it.
 
 ## Tool sequencing example

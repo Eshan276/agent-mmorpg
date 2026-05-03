@@ -2,6 +2,7 @@ import { Server }          from 'socket.io';
 import { WorldSimulation } from './WorldSimulation.js';
 import { logAction, flush } from './AxiomLogger.js';
 import { web3 }             from './Web3Manager.js';
+import { ens }              from './EnsManager.js';
 
 const RENDER_INTERVAL_MS = 200;
 const CHAT_TTL_MS = 6000; // bubbles last 6 seconds
@@ -34,14 +35,30 @@ export class GameServer {
       socket.emit('server:worldState', this._sim.buildRendererState());
     });
 
-    socket.on('agent:register', ({ agentId: id, walletAddress }) => {
+    socket.on('agent:register', ({ agentId: id, walletAddress, persona, axlPeerId }) => {
       role    = 'agent';
       agentId = id;
       this._agents.set(agentId, { socketId: socket.id });
       this._sim.registerPlayer(agentId, walletAddress ?? null);
+
+      // Stash persona + AXL peer id on the player for downstream consumers
+      const player = this._sim.getPlayer(agentId);
+      if (player) {
+        player.persona    = persona ?? '';
+        player.axlPeerId  = axlPeerId ?? null;
+      }
+
       // Mint starting gold to agent wallet (fire-and-forget)
       if (walletAddress && web3.ready) {
         web3.mintGold(walletAddress, 100n).catch(() => {});
+      }
+      // Mint/refresh ENS subname (fire-and-forget, idempotent)
+      if (walletAddress && ens.ready) {
+        ens.registerAgent(agentId, walletAddress, persona).then(async () => {
+          // Cache the resolved name on the player so renderer state can include it
+          const name = await ens.resolveName(walletAddress);
+          if (player && name) player.ensName = name;
+        }).catch(() => {});
       }
       const obs = this._sim.buildObservation(agentId);
       const now = Date.now();
@@ -72,6 +89,18 @@ export class GameServer {
         player.pushEvent(`Bought ${Math.floor(amountOut)} ${resourceId} for ${amountIn} GGLD (on-chain)`);
       }
       console.log(`[Web3] swap verified for ${agentId}: ${direction} ${amountIn} ${resourceId} tx=${txHash}`);
+
+      // Bump per-player swap counter and push live stats into ENS text records (debounced).
+      player.totalSwaps = (player.totalSwaps ?? 0) + 1;
+      if (ens.ready && player.walletAddress) {
+        ens.updateStats(agentId, player.walletAddress, {
+          persona: player.persona,
+          swaps:   player.totalSwaps,
+          ggld:    player.goldDisplay,
+          zone:    player.zone,
+          hp:      player.hp,
+        }).catch(() => {});
+      }
 
       // Push a fresh observation so the agent sees the updated inventory immediately
       const obs = this._sim.buildObservation(agentId);

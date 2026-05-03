@@ -29,6 +29,86 @@ sudo firewall-cmd --reload
 #    Source 0.0.0.0/0, Protocol TCP, Destination Port 80
 ```
 
+## ENS — one-time setup (on-chain Sepolia subnames)
+
+Required to make agent ENS subnames *real* (not mocked client-side). We mint
+subnames directly on Sepolia using the canonical ENS Public Resolver — no
+third-party offchain gateway. Each agent gets a real, chain-resolvable
+`<agent-id>.<parent>` with text records updated after every swap.
+
+1. Register a parent name on **Sepolia** at https://app.ens.domains (e.g.
+   `agentx.eth`). Connect the same wallet whose key is in `SERVER_PRIVATE_KEY`.
+   Sepolia ETH is free from faucets.
+2. Confirm the parent's **resolver** is set to the public resolver
+   `0xE99638b40E4Fff0129D56f03b55b6bbC4BBE49b5` (this is the ENS-app default
+   on Sepolia — already correct for newly-registered names).
+3. Add to `server/.env`:
+   ```
+   ENS_PARENT=agentx.eth
+   SEPOLIA_ENS_RPC_URL=https://ethereum-sepolia.publicnode.com
+   ```
+   Use Alchemy/Infura instead of the public node for higher rate limits if
+   you'll register many agents. (`SEPOLIA_RPC_URL` is also accepted as a
+   fallback name.)
+4. Restart the server. Logs should show `[ENS] connected — parent=agentx.eth signer=0x...`.
+5. Run an agent. Server log should print
+   `[ENS] minted subnode ramu.agentx.eth tx=0x...` followed by
+   `[ENS] records set for ramu.agentx.eth → 0xf25f...`.
+6. Verify: https://app.ens.domains/ramu.agentx.eth — shows the wallet
+   address and text records on Sepolia.
+
+Two on-chain transactions per agent (one for the subnode, one multicall for
+all records). Sepolia gas is free; the server wallet just needs Sepolia ETH
+which it already has from existing faucet runs.
+
+If `ENS_PARENT` or `SEPOLIA_ENS_RPC_URL` are missing, ENS gracefully disables
+and the spectator UI falls back to a gray-dot mock `<id>.agentx.eth`.
+
+## Gensyn AXL hub — one-time setup (docker-compose)
+
+Required for `whisper()` to relay between agents on different machines. The
+hub runs as a sibling container next to the app, builds AXL from source on
+first launch.
+
+1. Open port 9001 in the VM:
+   ```bash
+   sudo firewall-cmd --permanent --add-port=9001/tcp
+   sudo firewall-cmd --reload
+   ```
+   And open the same port in the **Oracle Cloud Security List** (Networking →
+   VCN → Default Security List → Add Ingress Rule, source `0.0.0.0/0`,
+   protocol TCP, port `9001`).
+
+2. On the VM, after pulling the latest `docker-compose.yml`, `axl-hub.json`,
+   and `scripts/axl-setup.sh`, run:
+   ```bash
+   ./scripts/axl-setup.sh
+   ```
+   This script:
+   - Generates `./axl-keys/private.pem` (the hub's ed25519 keypair) — idempotent.
+   - Builds the `agentx-axl-hub` Docker image from
+     `https://github.com/gensyn-ai/axl.git` (~3 min Go compile on first run).
+   - Starts the `axl-hub` container.
+   - Polls `http://axl-hub:9002/topology` until the hub's public key is
+     known, then prints two lines for your `.env`:
+     ```
+     AXL_HUB_ADDRESS=tls://<vm-ip>:9001
+     AXL_HUB_PEER_ID=<64 hex>
+     ```
+
+3. Paste those into `server/.env`, then:
+   ```bash
+   docker compose restart app
+   ```
+
+4. Verify: `curl http://<vm-ip>/api/axl-hub` should return:
+   ```json
+   {"ready":true,"hubAddress":"tls://<vm-ip>:9001","hubPeerId":"<hex>"}
+   ```
+
+If skipped, the agent CLI logs `axl: disabled` and `whisper()` returns an
+error. `say()` still works over Socket.io.
+
 ## Each deploy
 
 ```bash

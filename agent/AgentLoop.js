@@ -37,12 +37,13 @@ function dirFromDelta(dx, dy) {
 }
 
 export class AgentLoop {
-  constructor({ serverUrl, provider, agentId, wallet, persona }) {
+  constructor({ serverUrl, provider, agentId, wallet, persona, axl }) {
     this._serverUrl = serverUrl;
     this._provider  = provider;
     this._agentId   = agentId;
     this._wallet    = wallet ?? null;
     this._persona   = persona ?? '';
+    this._axl       = axl ?? null;
     this._socket    = null;
     this._snapshot  = null;
     this._running   = false;
@@ -63,6 +64,8 @@ export class AgentLoop {
       this._socket.emit('agent:register', {
         agentId:       this._agentId,
         walletAddress: this._wallet?.address ?? null,
+        persona:       this._persona ?? '',
+        axlPeerId:     this._axl?.peerId ?? null,
       });
       this._running = true;
       this._loop();
@@ -111,6 +114,21 @@ export class AgentLoop {
 
   async _runSession() {
     const snap = this._snapshot;
+
+    // Drain any inbound whispers since the last session and attach to the snapshot
+    // so they show up in the observation prompt under "Whispers (private)".
+    if (this._axl?.ready) {
+      const inbox = this._axl.drainInbox();
+      if (inbox.length) {
+        snap.whispers = inbox.map(m => {
+          const txt    = m.payload?.text ?? (typeof m.payload === 'string' ? m.payload : JSON.stringify(m.payload));
+          const fromEns = m.payload?.fromEns;
+          const fromId  = m.payload?.from;
+          return { from: fromEns || fromId || m.from.slice(0, 8), text: String(txt).slice(0, 200) };
+        });
+      }
+    }
+
     const { tileX, tileY, hp, energy, zone } = snap.player;
     console.log(`\n[Agent:${this._agentId}] ── new session ── pos=(${tileX},${tileY}) hp=${hp} en=${energy} GGLD=${snap.goldBalance ?? '?'} zone=${zone}`);
 
@@ -277,6 +295,34 @@ export class AgentLoop {
         this._socket.emit('agent:chat', { agentId: this._agentId, message: msg });
         console.log(`[Agent:${this._agentId}] says: "${msg}"`);
         return { ok: true, said: msg };
+      }
+
+      case 'whisper': {
+        if (!this._axl?.ready) {
+          return { ok: false, error: 'AXL spoke not running — whisper unavailable' };
+        }
+        const { target, message } = input;
+        const targetMsg = String(message ?? '').slice(0, 200);
+
+        // Resolve target → axlPeerId via the latest observation's otherAgents.
+        const others = this._snapshot?.otherAgents ?? [];
+        const peer = others.find(a =>
+          a.ensName === target || a.agentId === target || a.axlPeerId === target
+        );
+        if (!peer?.axlPeerId) {
+          return { ok: false, error: `unknown peer "${target}" (need ENS name, agentId, or peer id; visible peers: ${others.map(o => o.ensName || o.agentId).join(', ') || 'none'})` };
+        }
+        try {
+          await this._axl.send(peer.axlPeerId, {
+            from: this._agentId,
+            fromEns: this._snapshot?.ensName ?? null,
+            text: targetMsg,
+          });
+          console.log(`[Agent:${this._agentId}] whisper → ${target}: "${targetMsg}"`);
+          return { ok: true, sentTo: target };
+        } catch (e) {
+          return { ok: false, error: e.message };
+        }
       }
 
       case 'done':

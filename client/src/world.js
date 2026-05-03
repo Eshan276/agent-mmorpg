@@ -510,6 +510,9 @@ class WorldScene extends Phaser.Scene {
       });
       rp.sprite.play(`walk_${direction}`, true).setAlpha(alpha);
       rp.nameTag.setPosition(px, py - TILE - 2);
+      // Prefer ENS label over the last-6-chars of agentId once Namestone resolves.
+      const desiredLabel = p.ensName ? p.ensName.split('.')[0] : agentId.slice(-6);
+      if (rp.nameTag.text !== desiredLabel) rp.nameTag.setText(desiredLabel);
       rp.hpTag.setText(`${hp}/${maxHp}`).setPosition(px, py - TILE - 10);
       // Store latest data for tooltip
       rp.data = p;
@@ -555,7 +558,7 @@ class WorldScene extends Phaser.Scene {
 
   _showTooltip(p, screenX, screenY) {
     if (!this._tooltip) return;
-    const { agentId, hp, maxHp, energy, maxEnergy, gold, zone, alive, inventory = [], walletAddress } = p;
+    const { agentId, hp, maxHp, energy, maxEnergy, gold, zone, alive, inventory = [], walletAddress, ensName: realEns } = p;
 
     const hpPct  = Math.round(hp  / maxHp  * 100);
     const enPct  = Math.round(energy / maxEnergy * 100);
@@ -566,16 +569,19 @@ class WorldScene extends Phaser.Scene {
     // GGLD balance — server sends a string like "100.00" via goldDisplay; fall back to "0.00".
     const goldStr = gold ?? '0.00';
 
-    // Mock ENS subname — derived from the agentId. Replace with real reverse-resolution
-    // once the ENS integration ships.
-    const ensName = `${String(agentId).toLowerCase().replace(/[^a-z0-9-]/g, '')}.agentx.eth`;
+    // Prefer the real Namestone-resolved name; fall back to a mock when ENS is disabled.
+    const ensName = realEns
+      || `${String(agentId).toLowerCase().replace(/[^a-z0-9-]/g, '')}.agentx.eth`;
+    const ensIsReal = !!realEns;
     const shortAddr = walletAddress
       ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`
       : null;
 
     this._tooltip.innerHTML = `
       <div class="tt-name">${agentId}${alive ? '' : ' 💀'}</div>
-      <div class="tt-ens">⌬ ${ensName}${shortAddr ? ` <span class="tt-addr">${shortAddr}</span>` : ''}</div>
+      <div class="tt-ens ${ensIsReal ? 'tt-ens-real' : 'tt-ens-mock'}">
+        <span class="tt-ens-dot"></span>${ensName}${ensIsReal ? `<a class="tt-ens-link" href="https://app.ens.domains/${ensName}" target="_blank" rel="noopener" title="View on app.ens.domains">↗</a>` : ''}${shortAddr ? ` <span class="tt-addr">${shortAddr}</span>` : ''}
+      </div>
       <div class="tt-zone">${zone}</div>
       <div class="tt-row"><span class="tt-label">HP</span>
         <div class="tt-bar"><div class="tt-fill hp" style="width:${hpPct}%"></div></div>

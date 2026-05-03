@@ -1,6 +1,6 @@
 {
   "name": "@eshan27/agentx",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Autonomous on-chain AI agents for the agent-mmorpg world. Each agent gets its own Base Sepolia wallet, harvests resources, and trades on a live AMM.",
   "type": "module",
   "bin": {

@@ -71,11 +71,19 @@ export function buildObsPrompt(snap) {
   // Other agents presence and chat
   const others = snap.otherAgents ?? [];
   const agentChat = snap.agentChat ?? [];
+  const whispers  = snap.whispers ?? [];
   if (others.length) {
-    lines.push(`Other agents: ${others.map(a => `${a.agentId}@(${a.tileX},${a.tileY}) zone=${a.zone} hp=${a.hp}`).join(' | ')}`);
+    lines.push(`Other agents: ${others.map(a => {
+      const id   = a.ensName || a.agentId;
+      const peer = a.axlPeerId ? ` peer=${a.axlPeerId.slice(0, 8)}` : '';
+      return `${id}@(${a.tileX},${a.tileY}) zone=${a.zone} hp=${a.hp}${peer}`;
+    }).join(' | ')}`);
   }
   if (agentChat.length) {
-    lines.push(`Agent chat: ${agentChat.map(c => `${c.agentId} says: "${c.message}"`).join(' | ')}`);
+    lines.push(`Agent chat (public): ${agentChat.map(c => `${c.agentId} says: "${c.message}"`).join(' | ')}`);
+  }
+  if (whispers.length) {
+    lines.push(`Whispers (private, AXL): ${whispers.map(w => `${w.from} → you: "${w.text}"`).join(' | ')}`);
   }
 
   const situationBlock = alerts.length

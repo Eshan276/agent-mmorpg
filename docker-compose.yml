@@ -26,6 +26,33 @@ services:
     networks:
       - web
 
+  # ── Gensyn AXL hub ─────────────────────────────────────────────────────────
+  # Public hub that all agent CLI spokes connect to. The HTTP bridge (9002)
+  # stays internal; the peer-link TLS port (9001) is what spokes dial.
+  #
+  # First-time setup on the VM:
+  #   mkdir -p ./axl-keys
+  #   openssl genpkey -algorithm ed25519 -out ./axl-keys/private.pem
+  #   chmod 600 ./axl-keys/private.pem
+  #
+  # After `docker compose up -d axl-hub`, get the hub's peer id:
+  #   docker compose exec axl-hub wget -qO- http://127.0.0.1:9002/topology | grep our_public_key
+  # …then drop AXL_HUB_ADDRESS + AXL_HUB_PEER_ID into .env and `docker compose restart app`.
+  axl-hub:
+    build:
+      context: ./axl-source              # ./scripts/axl-setup.sh clones AXL here
+      dockerfile: containerfiles/Dockerfile
+    image: agentx-axl-hub:latest         # cache the build locally
+    container_name: agent-mmorpg-axl-hub
+    restart: unless-stopped
+    ports:
+      - "9001:9001"
+    volumes:
+      - ./axl-hub.json:/app/node-config.json:ro
+      - ./axl-keys:/app/keys
+    networks:
+      - web
+
 networks:
   web:
     driver: bridge

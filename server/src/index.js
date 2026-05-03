@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { GameServer }   from './GameServer.js';
 import { logsHandler }  from './logsHandler.js';
 import { web3 }         from './Web3Manager.js';
+import { ens }          from './EnsManager.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const PORT  = process.env.PORT || 3000;
@@ -37,6 +38,19 @@ app.get('/api/prices', (req, res) => {
   });
 });
 
+// AXL hub discovery — agent CLIs read this to bootstrap their spoke node.
+// Returns null when no hub is configured (env vars unset).
+app.get('/api/axl-hub', (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  const hubAddress = process.env.AXL_HUB_ADDRESS || null;
+  const hubPeerId  = process.env.AXL_HUB_PEER_ID  || null;
+  res.json({
+    ready: Boolean(hubAddress && hubPeerId),
+    hubAddress,
+    hubPeerId,
+  });
+});
+
 // ── Static client (production) ──────────────────────────────────────────────
 if (CLIENT_DIST) {
   console.log(`[server] serving client from ${CLIENT_DIST}`);
@@ -53,8 +67,9 @@ if (CLIENT_DIST) {
 // ── HTTP + Socket.io ────────────────────────────────────────────────────────
 const httpServer = createServer(app);
 
-// Init Web3 (non-blocking — server runs without it if env vars absent)
+// Init Web3 + ENS (non-blocking — server runs without them if env vars absent)
 web3.init().catch(e => console.error('[Web3] init error:', e.message));
+ens.init();
 
 const gameServer = new GameServer(httpServer);
 
