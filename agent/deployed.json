@@ -1,0 +1,8 @@
+{
+  "network": "baseSepolia",
+  "chainId": 84532,
+  "deployer": "0x0Aee1782f4821044df84101Fd7c11c354C00f292",
+  "goldToken": "0x7206FBf3a15FDFaBe7194735674723ad3a49ae80",
+  "gameAMM": "0xC9AC62eFaAEFBe07b9d5b74Aaf86bA258521e527",
+  "deployedAt": "2026-05-01T01:12:35.525Z"
+}

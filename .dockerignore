@@ -1,0 +1,25 @@
+**/node_modules
+**/.env
+**/.env.*
+**/dist
+**/.cache
+
+agent/wallets
+agent/config
+
+contracts/artifacts
+contracts/cache
+contracts/typechain-types
+
+GodotProject/
+Godot Project V4/
+Ninja Adventure - Asset Pack/
+docs/
+.git
+.github
+.gitignore
+.vscode
+.claude
+*.log
+*.tar
+*.tar.gz

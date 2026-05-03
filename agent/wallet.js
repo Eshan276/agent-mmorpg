@@ -1,12 +1,9 @@
 import { ethers }    from 'ethers';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath }  from 'url';
+import { join } from 'path';
+import { WALLETS_DIR } from './paths.js';
 
-const __dir = dirname(fileURLToPath(import.meta.url));
-const WALLETS_DIR = join(__dir, 'wallets');
-
-const RPC_URL    = process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org';
+const RPC_URL    = process.env.BASE_SEPOLIA_RPC_URL || 'https://base-sepolia.g.alchemy.com/v2/jM8GG-k63irvrx6Q8DOT8';
 const PASSPHRASE = process.env.WALLET_PASSPHRASE    || 'agent-mmorpg-default';
 
 export const AMM_ABI = [

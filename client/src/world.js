@@ -555,7 +555,7 @@ class WorldScene extends Phaser.Scene {
 
   _showTooltip(p, screenX, screenY) {
     if (!this._tooltip) return;
-    const { agentId, hp, maxHp, energy, maxEnergy, gold, zone, alive, inventory = [] } = p;
+    const { agentId, hp, maxHp, energy, maxEnergy, gold, zone, alive, inventory = [], walletAddress } = p;
 
     const hpPct  = Math.round(hp  / maxHp  * 100);
     const enPct  = Math.round(energy / maxEnergy * 100);
@@ -563,8 +563,19 @@ class WorldScene extends Phaser.Scene {
       ? inventory.map(i => `<span class="inv-item">${i.name}${i.qty > 1 ? ` ×${i.qty}` : ''}</span>`).join('')
       : '<span class="inv-empty">empty</span>';
 
+    // GGLD balance — server sends a string like "100.00" via goldDisplay; fall back to "0.00".
+    const goldStr = gold ?? '0.00';
+
+    // Mock ENS subname — derived from the agentId. Replace with real reverse-resolution
+    // once the ENS integration ships.
+    const ensName = `${String(agentId).toLowerCase().replace(/[^a-z0-9-]/g, '')}.agentx.eth`;
+    const shortAddr = walletAddress
+      ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`
+      : null;
+
     this._tooltip.innerHTML = `
       <div class="tt-name">${agentId}${alive ? '' : ' 💀'}</div>
+      <div class="tt-ens">⌬ ${ensName}${shortAddr ? ` <span class="tt-addr">${shortAddr}</span>` : ''}</div>
       <div class="tt-zone">${zone}</div>
       <div class="tt-row"><span class="tt-label">HP</span>
         <div class="tt-bar"><div class="tt-fill hp" style="width:${hpPct}%"></div></div>
@@ -574,7 +585,7 @@ class WorldScene extends Phaser.Scene {
         <div class="tt-bar"><div class="tt-fill en" style="width:${enPct}%"></div></div>
         <span class="tt-val">${energy}/${maxEnergy}</span>
       </div>
-      <div class="tt-gold">⬡ ${gold} gold</div>
+      <div class="tt-gold">⬡ ${goldStr} GGLD</div>
       <div class="tt-inv">${invHtml}</div>
     `;
 
