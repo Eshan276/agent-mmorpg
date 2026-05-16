@@ -415,6 +415,7 @@ export class WorldSimulation {
         gold:           p.goldDisplay,
         walletAddress:  p.walletAddress,
         ensName:        p.ensName,        // real ENS name (or null until resolved)
+        ogStorageRoot:  p.ogStorageRoot,  // 0G Storage root hash of latest snapshot
         zone:           p.zone,
         alive:          p.alive,
         totalHarvests:  p.totalHarvests,

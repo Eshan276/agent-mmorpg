@@ -8,6 +8,8 @@ import { GameServer }   from './GameServer.js';
 import { logsHandler }  from './logsHandler.js';
 import { web3 }         from './Web3Manager.js';
 import { ens }          from './EnsManager.js';
+import { og }           from './OgStorageManager.js';
+import { ogChain }      from './OgChainManager.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const PORT  = process.env.PORT || 3000;
@@ -35,6 +37,20 @@ app.get('/api/prices', (req, res) => {
     prices:    web3.ready ? web3.getCachedPrices()       : {},
     history:   web3.ready ? web3.getPriceHistory()        : {},
     contracts: web3.ready ? web3.getContractAddresses()   : null,
+  });
+});
+
+// 0G status — let the spectator UI and judges verify 0G integration is live.
+app.get('/api/og-status', (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.json({
+    storage: { ready: og.ready },
+    chain: {
+      ready:    ogChain.ready,
+      chainId:  ogChain.chainId,
+      registry: ogChain.registryAddress,
+      explorer: ogChain.registryAddress ? ogChain.explorerUrl(ogChain.registryAddress) : null,
+    },
   });
 });
 
@@ -67,9 +83,11 @@ if (CLIENT_DIST) {
 // ── HTTP + Socket.io ────────────────────────────────────────────────────────
 const httpServer = createServer(app);
 
-// Init Web3 + ENS (non-blocking — server runs without them if env vars absent)
+// Init external services (non-blocking — server runs without them if env vars absent)
 web3.init().catch(e => console.error('[Web3] init error:', e.message));
 ens.init();
+og.init();
+ogChain.init();
 
 const gameServer = new GameServer(httpServer);
 

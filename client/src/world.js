@@ -558,7 +558,7 @@ class WorldScene extends Phaser.Scene {
 
   _showTooltip(p, screenX, screenY) {
     if (!this._tooltip) return;
-    const { agentId, hp, maxHp, energy, maxEnergy, gold, zone, alive, inventory = [], walletAddress, ensName: realEns } = p;
+    const { agentId, hp, maxHp, energy, maxEnergy, gold, zone, alive, inventory = [], walletAddress, ensName: realEns, ogStorageRoot } = p;
 
     const hpPct  = Math.round(hp  / maxHp  * 100);
     const enPct  = Math.round(energy / maxEnergy * 100);
@@ -592,6 +592,13 @@ class WorldScene extends Phaser.Scene {
         <span class="tt-val">${energy}/${maxEnergy}</span>
       </div>
       <div class="tt-gold">⬡ ${goldStr} GGLD</div>
+      ${ogStorageRoot ? `
+        <div class="tt-og">
+          <span class="tt-og-dot"></span>
+          backed up on 0G
+          <a class="tt-og-link" href="https://storagescan.0g.ai/tx/${ogStorageRoot}" target="_blank" rel="noopener" title="View 0G Storage record">↗</a>
+        </div>
+      ` : ''}
       <div class="tt-inv">${invHtml}</div>
     `;
 

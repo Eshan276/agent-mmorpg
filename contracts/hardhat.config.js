@@ -21,5 +21,15 @@ module.exports = {
       accounts: [PRIVKEY],
       chainId:  84532,
     },
+    ogMainnet: {
+      url:      process.env.OG_MAINNET_RPC_URL || 'https://evmrpc.0g.ai',
+      accounts: [PRIVKEY],
+      chainId:  16661,
+    },
+    ogTestnet: {
+      url:      process.env.OG_TESTNET_RPC_URL || 'https://evmrpc-testnet.0g.ai',
+      accounts: [PRIVKEY],
+      chainId:  16602,
+    },
   },
 };

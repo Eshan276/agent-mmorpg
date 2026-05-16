@@ -53,6 +53,7 @@ export class ServerPlayer {
     this.axlPeerId     = null; // 64-char hex of the agent's AXL spoke public key
     this.persona       = '';   // free-form personality text from CLI init
     this.totalSwaps    = 0;    // incremented in GameServer after each verified swap
+    this.ogStorageRoot = null; // latest 0G Storage root hash for this agent's snapshot
     this.alive          = true;
     this.zone           = 'Shinobi Village';
     this.totalHarvests  = 0;
