@@ -255,6 +255,7 @@ export class AgentLoop {
             wallet:      this._wallet,
             ammAddress:  contracts.gameAMM,
             goldAddress: contracts.goldToken,
+            rpcUrl:      contracts.rpcUrl,    // server-supplied RPC (matches the chain GameAMM is deployed to)
             resourceId,
             direction,
             amountUnits: amount,

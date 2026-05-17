@@ -44,10 +44,20 @@ export async function loadOrCreateWallet(agentId) {
 // Execute a swap on the GameAMM contract.
 // direction='sell': agent gives up resourceUnits, receives GGLD (minted to them)
 // direction='buy':  agent burns GGLD, server delivers item to inventory
-export async function executeSwap({ wallet, ammAddress, goldAddress, resourceId, direction, amountUnits, slippagePct = 2 }) {
+export async function executeSwap({ wallet, ammAddress, goldAddress, resourceId, direction, amountUnits, slippagePct = 2, rpcUrl }) {
+  // If the server tells us which RPC to use (e.g. 0G mainnet), reconnect to it
+  // before signing. Otherwise stick with whatever provider the wallet was loaded with.
+  let signer = wallet;
+  if (rpcUrl) {
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    // Recreate the signer on the new provider — wallet.privateKey is available
+    // because we constructed it from an encrypted keyfile during loadOrCreateWallet.
+    signer = new ethers.Wallet(wallet.privateKey, provider);
+  }
+
   const rid  = ethers.encodeBytes32String(resourceId);
-  const amm  = new ethers.Contract(ammAddress, AMM_ABI, wallet);
-  const gold = new ethers.Contract(goldAddress, GOLD_ABI, wallet);
+  const amm  = new ethers.Contract(ammAddress, AMM_ABI, signer);
+  const gold = new ethers.Contract(goldAddress, GOLD_ABI, signer);
   const units = BigInt(Math.floor(amountUnits));
 
   let tx, receipt;
@@ -74,7 +84,7 @@ export async function executeSwap({ wallet, ammAddress, goldAddress, resourceId,
     // Approve AMM to burn GGLD (approve allowance trick — AMM calls burn via GoldToken)
     // Actually GameAMM calls goldToken.burn(msg.sender, goldIn) — no approval needed.
     // But we need enough balance.
-    const balance = await gold.balanceOf(wallet.address);
+    const balance = await gold.balanceOf(signer.address);
     if (balance < maxIn) {
       return { ok: false, error: `Insufficient GGLD: have ${ethers.formatEther(balance)}, need ~${ethers.formatEther(expected)}` };
     }
