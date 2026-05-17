@@ -6,6 +6,10 @@
 FROM node:20-alpine AS client-build
 WORKDIR /repo
 
+# Native build toolchain for node-gyp deps (bufferutil, utf-8-validate,
+# some 0G SDK deps). Alpine doesn't ship these by default.
+RUN apk add --no-cache python3 make g++ libc6-compat
+
 # Copy only what's needed to install workspace deps for the client
 COPY package.json package-lock.json ./
 COPY client/package.json ./client/
@@ -33,16 +37,20 @@ FROM node:20-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 
-# Install only the server's production deps
+# Reuse the already-installed (and compiled) node_modules from the builder
+# stage. This avoids a second `npm ci` here that would re-trigger native gyp
+# builds (bufferutil etc.) without the build toolchain present on the runtime
+# alpine image.
 COPY package.json package-lock.json ./
 COPY server/package.json ./server/
 COPY client/package.json ./client/
 COPY agent/package.json  ./agent/
-RUN npm ci --omit=dev -w server
+COPY --from=client-build /repo/node_modules ./node_modules
 
 # Server source + Web3 contract addresses
 COPY server   ./server
-COPY contracts/deployed.json ./contracts/deployed.json
+COPY contracts/deployed.json    ./contracts/deployed.json
+COPY contracts/deployed-og.json ./contracts/deployed-og.json
 
 # WorldSimulation reads ../../client/public/tilemap.json relative to server/src/
 # Ship the source tilemap so that relative path still resolves at runtime.
