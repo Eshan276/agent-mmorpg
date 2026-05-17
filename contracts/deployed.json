@@ -1,8 +1,24 @@
 {
-  "network": "baseSepolia",
-  "chainId": 84532,
+  "network": "ogMainnet",
+  "chainId": 16661,
   "deployer": "0x0Aee1782f4821044df84101Fd7c11c354C00f292",
-  "goldToken": "0x7206FBf3a15FDFaBe7194735674723ad3a49ae80",
-  "gameAMM": "0xC9AC62eFaAEFBe07b9d5b74Aaf86bA258521e527",
-  "deployedAt": "2026-05-01T01:12:35.525Z"
+  "goldToken": "0x82bd7262c3F4a1cCeb6Ad4023C23001cB0b86036",
+  "gameAMM": "0xFDabaE2f5FC5370E2F91408e567CEc627e9e484A",
+  "deployedAt": "2026-05-16T14:57:31.668Z",
+  "chain_16661": {
+    "network": "ogMainnet",
+    "chainId": 16661,
+    "deployer": "0x0Aee1782f4821044df84101Fd7c11c354C00f292",
+    "goldToken": "0x82bd7262c3F4a1cCeb6Ad4023C23001cB0b86036",
+    "gameAMM": "0xFDabaE2f5FC5370E2F91408e567CEc627e9e484A",
+    "deployedAt": "2026-05-16T14:57:31.668Z"
+  },
+  "chain_84532": {
+    "network": "baseSepolia",
+    "chainId": 84532,
+    "deployer": "0x0Aee1782f4821044df84101Fd7c11c354C00f292",
+    "goldToken": "0x7206FBf3a15FDFaBe7194735674723ad3a49ae80",
+    "gameAMM": "0xC9AC62eFaAEFBe07b9d5b74Aaf86bA258521e527",
+    "deployedAt": "2026-05-01T01:12:35.525Z"
+  }
 }
