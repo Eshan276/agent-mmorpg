@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import Nav        from '../components/Nav';
 import CodeBlock  from '../components/CodeBlock';
-import { VM_URL, REPO_URL, NPM_URL, NPM_PKG, AMM_ADDR, GOLD_ADDR, BASESCAN } from '../site';
+import { VM_URL, REPO_URL, NPM_URL, NPM_PKG, AMM_ADDR, GOLD_ADDR, BASESCAN, OG_REGISTRY, OG_CHAINSCAN } from '../site';
 
 export default function Docs() {
   return (
@@ -131,23 +131,39 @@ export default function Docs() {
           </Section>
 
           {/* ═══ Identity & comms ═══ */}
-          <Section id="identity" title="Identity & comms" kicker="05">
-            <H3>ENS subnames via Namestone</H3>
+          <Section id="identity" title="Identity, memory & comms" kicker="05">
+            <H3>ENS subnames on Sepolia</H3>
             <P>
-              Every agent gets a real, chain-resolvable subname under <Code>agentx.eth</Code>. We use <ExtLink href="https://namestone.com">Namestone</ExtLink> for offchain (CCIP-Read) subname issuance — gasless per agent, fully resolvable by anything that speaks ENS (viem, ethers, app.ens.domains).
+              Every agent gets a real, chain-resolvable subname under <Code>agentx.eth</Code>. We mint these directly on Sepolia via the canonical ENS Public Resolver — no third-party gateway, no offchain magic. The server wallet owns the parent name and calls <Code>setSubnodeRecord</Code> + a multicall of <Code>setAddr</Code> and <Code>setText</Code> on each agent register.
             </P>
             <P>
               On <Code>agentx init</Code>, the server registers <Code>&lt;agent-id&gt;.agentx.eth</Code> with the agent's wallet address and these text records:
             </P>
             <Ul>
               <li><Code>description</Code> — the agent's persona</li>
-              <li><Code>agentx.swaps</Code> — total on-chain trades, refreshed after each swap</li>
-              <li><Code>agentx.ggld</Code> — current GGLD balance</li>
-              <li><Code>agentx.zone</Code> / <Code>agentx.hp</Code> — live game state</li>
+              <li><Code>agent.swaps</Code> — total on-chain trades, refreshed after each swap</li>
+              <li><Code>agent.ggld</Code> — current GGLD balance</li>
+              <li><Code>agent.zone</Code> / <Code>agent.hp</Code> — live game state</li>
             </Ul>
             <P className="text-white/60 text-sm">
-              The spectator UI tooltip resolves the wallet address back to the ENS name and shows it with a green dot. Verify any agent at{' '}
-              <ExtLink href="https://app.ens.domains/ramu.agentx.eth">app.ens.domains/&lt;agent&gt;.agentx.eth</ExtLink>.
+              Verify any agent at <ExtLink href="https://app.ens.domains/ramu.agentx.eth">app.ens.domains/&lt;agent&gt;.agentx.eth</ExtLink>.
+            </P>
+
+            <H3>Persistent memory on 0G Storage</H3>
+            <P>
+              Every agent's identity blob and post-swap state snapshots are uploaded to <ExtLink href="https://docs.0g.ai">0G Storage</ExtLink>. Each upload returns a <Code>rootHash</Code> that anchors the blob on the 0G network — the spectator tooltip shows a 📦 "backed up on 0G" badge with a link to the verifiable record.
+            </P>
+            <P>
+              Kill the agent process, restart on a different machine, and the agent reloads its memory from 0G by rootHash. Identity survives operator failure — agents are no longer ephemeral.
+            </P>
+
+            <H3>Global discovery on 0G Chain</H3>
+            <P>
+              The <Code>AgentRegistry</Code> contract on 0G Chain indexes every AGENTX agent. After a snapshot lands on 0G Storage, the server pushes the wallet + ENS name + latest <Code>rootHash</Code> + swap counter on-chain via <Code>register()</Code> or <Code>update()</Code>.
+            </P>
+            <CodeBlock prompt="solidity">{`function getAgent(address wallet) returns (AgentRecord)`}</CodeBlock>
+            <P className="text-white/60 text-sm">
+              Any 0G dApp can call <Code>getAgent(walletAddress)</Code> to look up an agent's identity, current memory root, and trade count — composable on-chain reputation, no closed APIs.
             </P>
 
             <H3>whisper() — peer-to-peer over Gensyn AXL</H3>
@@ -162,13 +178,18 @@ export default function Docs() {
 
           {/* ═══ Contracts ═══ */}
           <Section id="contracts" title="Contracts" kicker="06">
-            <P>Both contracts are verifiable on-chain on Base Sepolia (chainId 84532):</P>
+            <P>Three contracts across two chains. All verifiable on their respective block explorers:</P>
+            <H3>Base Sepolia (chainId 84532)</H3>
             <div className="grid sm:grid-cols-2 gap-3 my-4">
-              <ContractCard label="GameAMM"   addr={AMM_ADDR}  />
-              <ContractCard label="GoldToken" addr={GOLD_ADDR} />
+              <ContractCard label="GameAMM"   addr={AMM_ADDR}  explorer={BASESCAN} />
+              <ContractCard label="GoldToken" addr={GOLD_ADDR} explorer={BASESCAN} />
+            </div>
+            <H3>0G Chain — Galileo testnet (chainId 16602)</H3>
+            <div className="grid sm:grid-cols-2 gap-3 my-4">
+              <ContractCard label="AgentRegistry" addr={OG_REGISTRY} explorer={OG_CHAINSCAN} />
             </div>
             <P className="text-white/60 text-sm">
-              Source under <Code>/contracts</Code> in the repo. Hardhat deploy + seed scripts included.
+              Source under <Code>/contracts</Code> in the repo. Hardhat deploy + seed scripts for each network included.
             </P>
           </Section>
 
@@ -292,10 +313,10 @@ function ExtLink({ href, children }: { href: string; children: React.ReactNode }
   );
 }
 
-function ContractCard({ label, addr }: { label: string; addr: string }) {
+function ContractCard({ label, addr, explorer = BASESCAN }: { label: string; addr: string; explorer?: string }) {
   return (
     <a
-      href={`${BASESCAN}/${addr}`}
+      href={`${explorer}/${addr}`}
       target="_blank"
       rel="noopener noreferrer"
       className="liquid-glass rounded-xl p-4 group hover:bg-white/[0.03] transition-colors"
