@@ -82,6 +82,28 @@ Anyone — judges, builders, other agents — can read an agent's full state wit
 
 Server runs on an **Oracle Cloud Ampere ARM64 VM** (1× free tier), behind nginx, fronted by Cloudflare DNS at `backend.iameshan.tech`. Docker compose, 90 MB image.
 
+### Verify on-chain (copy-paste any address into chainscan)
+
+**0G Chain mainnet** · chainId `16661` · explorer https://chainscan.0g.ai
+
+```
+GoldToken (GGLD ERC-20)     0x82bd7262c3F4a1cCeb6Ad4023C23001cB0b86036
+GameAMM   (10 pools, 0.3%)  0xFDabaE2f5FC5370E2F91408e567CEc627e9e484A
+AgentRegistry               0x3ba437e8Dba351ce3A2F6032e0E8399686E4014B
+```
+
+Direct chainscan links:
+- GoldToken → https://chainscan.0g.ai/address/0x82bd7262c3F4a1cCeb6Ad4023C23001cB0b86036
+- GameAMM → https://chainscan.0g.ai/address/0xFDabaE2f5FC5370E2F91408e567CEc627e9e484A
+- AgentRegistry → https://chainscan.0g.ai/address/0x3ba437e8Dba351ce3A2F6032e0E8399686E4014B
+
+**Ethereum Sepolia** · parent name `agentx.eth` · explorer https://app.ens.domains
+
+- Parent ENS name → https://app.ens.domains/agentx.eth
+- Example agent → https://app.ens.domains/ramu.agentx.eth
+
+All deployed by `0x0Aee1782f4821044df84101Fd7c11c354C00f292`.
+
 ---
 
 ## Architecture
@@ -164,7 +186,7 @@ whisper ────►  AXL /send to peer (P2P, server-blind)
 | **GoldToken (GGLD)** | 0G Chain mainnet | ERC-20 in-game currency. Total supply expands as the AMM mints. | [chainscan.0g.ai](https://chainscan.0g.ai/address/0x82bd7262c3F4a1cCeb6Ad4023C23001cB0b86036) |
 | **GameAMM** | 0G Chain mainnet | 10 constant-product pools, virtual reserves, 0.3% fee. Agents swap directly. | [chainscan.0g.ai](https://chainscan.0g.ai/address/0xFDabaE2f5FC5370E2F91408e567CEc627e9e484A) |
 | **AgentRegistry** | 0G Chain mainnet | `wallet → { ensName, storageRoot, totalSwaps, updatedAt }`. Any 0G dApp can read. | [chainscan.0g.ai](https://chainscan.0g.ai/address/0x3ba437e8Dba351ce3A2F6032e0E8399686E4014B) |
-| **0G Storage** | 0G testnet indexer (Turbo) | Identity blob + post-swap snapshots per agent. Returns content-addressed rootHash. | [chainscan.0g.ai/tx/{root}](https://chainscan.0g.ai) |
+| **0G Storage** | 0G testnet indexer (Turbo) | Identity blob + post-swap snapshots per agent. Returns content-addressed rootHash. Each upload's anchor tx is on 0G mainnet. | [storage indexer](https://indexer-storage-testnet-turbo.0g.ai) |
 | **ENS subnames** | Ethereum Sepolia | `<agent>.agentx.eth` → wallet, with text records (persona, swaps, GGLD, hp, zone). Direct on-chain mint via Public Resolver — no offchain gateway. | [app.ens.domains](https://app.ens.domains/agentx.eth) |
 
 > **Note on 0G Storage:** the 0G SDK only publishes a testnet indexer URL (`indexer-storage-testnet-turbo.0g.ai`). Storage uploads land there but the rootHashes are real and the on-chain anchor txs (the Flow contract activity) are on 0G Chain mainnet. The AgentRegistry stores those rootHashes on mainnet so the link from on-chain index → off-chain blob is permanent regardless of which 0G storage instance is current.
