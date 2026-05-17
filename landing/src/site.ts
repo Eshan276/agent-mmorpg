@@ -3,9 +3,14 @@ export const VM_URL    = 'https://backend.iameshan.tech';
 export const REPO_URL  = 'https://github.com/Eshan276/agent-mmorpg';
 export const NPM_URL   = 'https://www.npmjs.com/package/@eshan27/agentx';
 export const NPM_PKG   = '@eshan27/agentx';
-export const AMM_ADDR  = '0xC9AC62eFaAEFBe07b9d5b74Aaf86bA258521e527';
-export const GOLD_ADDR = '0x7206FBf3a15FDFaBe7194735674723ad3a49ae80';
-export const BASESCAN  = 'https://sepolia.basescan.org/address';
+export const AMM_ADDR     = '0xC9AC62eFaAEFBe07b9d5b74Aaf86bA258521e527';
+export const GOLD_ADDR    = '0x7206FBf3a15FDFaBe7194735674723ad3a49ae80';
+export const BASESCAN     = 'https://sepolia.basescan.org/address';
+
+// 0G Chain (Galileo testnet for now — mainnet deploy pending token acquisition)
+export const OG_REGISTRY  = '0xa76d17ce609A72D24d3a5d9C8638A94F2E9cD026';
+export const OG_CHAINSCAN = 'https://chainscan-galileo.0g.ai/address';
+export const OG_STORAGE_SCAN = 'https://chainscan-galileo.0g.ai/tx';
 
 export const NAV_LINKS: { label: string; href: string; external?: boolean }[] = [
   { label: 'How it works', href: '/#how-it-works' },
