@@ -40,13 +40,26 @@ class Web3Manager {
   static HISTORY_MAX = 240; // 240 samples × 30s = 2 hours of history
 
   async init() {
-    const rpcUrl  = process.env.BASE_SEPOLIA_RPC_URL;
     const privKey = process.env.SERVER_PRIVATE_KEY;
-
-    if (!rpcUrl || !privKey) {
-      console.warn('[Web3] BASE_SEPOLIA_RPC_URL or SERVER_PRIVATE_KEY not set — Web3 disabled');
+    if (!privKey) {
+      console.warn('[Web3] SERVER_PRIVATE_KEY not set — Web3 disabled');
       return;
     }
+
+    // Pick which chain the economy runs on. WEB3_CHAIN=og-mainnet|og-testnet|base-sepolia
+    // Default is base-sepolia for backwards compat with the original deploy.
+    const chain = (process.env.WEB3_CHAIN || 'base-sepolia').toLowerCase();
+    const CHAINS = {
+      'base-sepolia': { chainId: 84532, defaultRpc: 'https://sepolia.base.org',         envRpc: 'BASE_SEPOLIA_RPC_URL' },
+      'og-mainnet':   { chainId: 16661, defaultRpc: 'https://evmrpc.0g.ai',             envRpc: 'OG_MAINNET_RPC_URL'   },
+      'og-testnet':   { chainId: 16602, defaultRpc: 'https://evmrpc-testnet.0g.ai',     envRpc: 'OG_TESTNET_RPC_URL'   },
+    };
+    const spec = CHAINS[chain];
+    if (!spec) {
+      console.warn(`[Web3] unknown WEB3_CHAIN=${chain} — Web3 disabled (use base-sepolia | og-mainnet | og-testnet)`);
+      return;
+    }
+    const rpcUrl = process.env[spec.envRpc] || spec.defaultRpc;
 
     const deployedPath = join(__dir, '../../contracts/deployed.json');
     if (!existsSync(deployedPath)) {
@@ -55,18 +68,22 @@ class Web3Manager {
     }
     const deployed = JSON.parse(readFileSync(deployedPath, 'utf-8'));
 
-    if (!deployed.gameAMM) {
-      console.warn('[Web3] deployed.json missing gameAMM address — re-run deploy script. Web3 disabled.');
+    // Prefer the per-chainId block; fall back to the flat keys for backwards compat.
+    const block = deployed[`chain_${spec.chainId}`] || deployed;
+    if (!block?.gameAMM || !block?.goldToken) {
+      console.warn(`[Web3] no GameAMM/GoldToken in deployed.json for chainId ${spec.chainId} — disabled`);
       return;
     }
 
     this._provider = new ethers.JsonRpcProvider(rpcUrl);
     this._wallet   = new ethers.Wallet(privKey, this._provider);
-    this._gold     = new ethers.Contract(deployed.goldToken, GOLD_ABI, this._wallet);
-    this._amm      = new ethers.Contract(deployed.gameAMM,  AMM_ABI,  this._wallet);
+    this._gold     = new ethers.Contract(block.goldToken, GOLD_ABI, this._wallet);
+    this._amm      = new ethers.Contract(block.gameAMM,   AMM_ABI,  this._wallet);
+    this._rpcUrl   = rpcUrl;
+    this._chainId  = spec.chainId;
 
     const network = await this._provider.getNetwork();
-    console.log(`[Web3] connected — chain ${network.chainId}, server wallet ${this._wallet.address}`);
+    console.log(`[Web3] connected — chain ${network.chainId} (${chain}), gold=${block.goldToken} amm=${block.gameAMM}, server wallet ${this._wallet.address}`);
     this._ready = true;
 
     this._refreshPrices();
@@ -83,6 +100,21 @@ class Web3Manager {
       const tx = await this._gold.mint(agentAddress, amountUnits * UNIT);
       await tx.wait();
       console.log(`[Web3] minted ${amountUnits} GGLD → ${agentAddress}`);
+
+      // Top up native gas for the agent so it can actually call swap() on its own.
+      // Only drips once — if the agent already has gas (e.g. self-funded), skip.
+      const dripUnits = process.env.GAS_DRIP_ETH || '0.005';
+      const currentGas = await this._provider.getBalance(agentAddress);
+      const dripWei    = ethers.parseEther(dripUnits);
+      if (currentGas < dripWei) {
+        try {
+          const gasTx = await this._wallet.sendTransaction({ to: agentAddress, value: dripWei });
+          await gasTx.wait();
+          console.log(`[Web3] sent ${dripUnits} native gas → ${agentAddress} tx=${gasTx.hash}`);
+        } catch (e) {
+          console.warn(`[Web3] gas drip failed: ${e.message}`);
+        }
+      }
     } catch (e) {
       console.error(`[Web3] mintGold failed: ${e.message}`);
     }
@@ -164,6 +196,8 @@ class Web3Manager {
     return {
       goldToken: this._gold?.target ?? null,
       gameAMM:   this._amm?.target  ?? null,
+      chainId:   this._chainId      ?? null,
+      rpcUrl:    this._rpcUrl       ?? null,
     };
   }
 }

@@ -7,10 +7,10 @@ import {
 import { Link } from 'react-router-dom';
 import Nav        from '../components/Nav';
 import CodeBlock  from '../components/CodeBlock';
-import { VM_URL, REPO_URL, NPM_URL, NPM_PKG, AMM_ADDR, GOLD_ADDR, BASESCAN } from '../site';
+import { VM_URL, REPO_URL, NPM_URL, NPM_PKG, AMM_ADDR, GOLD_ADDR, BASESCAN, OG_REGISTRY, OG_CHAINSCAN } from '../site';
 
 const TITLE       = 'Autonomous Agents. Real On-Chain Economy.';
-const DESCRIPTION = 'AI agents with their own Ethereum wallets harvest, trade, and survive in a persistent MMORPG. Real swaps. Real GGLD. Real-time emergent markets.';
+const DESCRIPTION = 'AI agents with their own wallets, ENS names, and persistent memory on 0G live in a real on-chain MMORPG. Harvest, trade, survive. Every move is a verifiable transaction.';
 const VIDEO_URL   = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260406_094145_4a271a6c-3869-4f1c-8aa7-aeb0cb227994.mp4';
 
 const pillBase = 'rounded-full font-medium transition-colors';
@@ -52,7 +52,7 @@ export default function Landing() {
             >
               <span className="inline-flex items-center gap-2 font-medium">
                 <Zap size={16} className="sm:w-5 sm:h-5" />
-                Base · ENS · AXL
+                Base · 0G · ENS · AXL
               </span>
               <span className="inline-flex items-center gap-2">
                 <Coins size={16} className="sm:w-5 sm:h-5" />
@@ -60,7 +60,7 @@ export default function Landing() {
               </span>
               <span className="inline-flex items-center gap-2">
                 <Bot size={16} className="sm:w-5 sm:h-5" />
-                Peer-to-peer agents
+                Persistent agent memory
               </span>
             </div>
 
@@ -202,6 +202,13 @@ export default function Landing() {
           >
             <ExternalLink size={16} /> GGLD token
           </a>
+          <a
+            href={`${OG_CHAINSCAN}/${OG_REGISTRY}`}
+            target="_blank" rel="noopener noreferrer"
+            className={`${pillBase} liquid-glass px-6 py-2.5 inline-flex items-center gap-2 text-sm`}
+          >
+            <ExternalLink size={16} /> AgentRegistry on 0G
+          </a>
         </div>
       </section>
 
@@ -210,11 +217,14 @@ export default function Landing() {
         <SectionHeader kicker="Built with" title="Real infrastructure." />
         <div className="mt-12 md:mt-16 grid sm:grid-cols-2 md:grid-cols-3 gap-4">
           <StackItem title="Base Sepolia" body="Ethereum L2 testnet. Cheap gas, fast confirmation, EVM-compatible. Two contracts deployed: GoldToken (ERC-20) and GameAMM (10 pools)." />
-          <StackItem title="Solidity + Hardhat" body="Constant-product AMM with virtual reserves keyed by bytes32 resourceId. One contract, ten pools. 0.3% fee." />
-          <StackItem title="ethers.js v6" body="Server mints GGLD on agent register. Agents sign their own swap txs locally with encrypted keyfiles." />
+          <StackItem title="ENS on Sepolia" body="Each agent gets a real <id>.agentx.eth subname minted directly via the ENS Public Resolver — addr + text records (persona, swaps, GGLD) updated live after every trade." />
+          <StackItem title="0G Storage" body="Agent identity and post-swap state snapshots uploaded to 0G Storage. Each snapshot returns a verifiable rootHash anchored on chainscan-galileo.0g.ai." />
+          <StackItem title="0G Chain" body="AgentRegistry contract deployed on 0G Chain. Every agent registers wallet + ENS name + latest storage rootHash, discoverable by any 0G dApp via getAgent(address)." />
+          <StackItem title="Gensyn AXL" body="Peer-to-peer encrypted comms layer. Each agentx CLI spawns its own AXL spoke node; whisper() routes messages off-server through a hub running alongside the game." />
+          <StackItem title="Solidity + Hardhat" body="Constant-product AMM with virtual reserves keyed by bytes32 resourceId. One contract, ten pools, 0.3% fee. Same toolchain deploys to Base + 0G Chain." />
+          <StackItem title="ethers.js v6" body="Server mints GGLD on agent register and writes to 0G Chain + ENS. Agents sign their own swap txs locally with encrypted keyfiles." />
           <StackItem title="Node + Express + Socket.io" body="Server-authoritative game state. 200ms world ticks broadcast to spectators. Per-agent rate limit." />
-          <StackItem title="Phaser 3" body="Spectator-only 2D Phaser scene. Pan, zoom, click an agent for live HP/energy/inventory tooltip." />
-          <StackItem title="LLM-driven agents" body="Pluggable providers — Anthropic, Gemini, OpenRouter, Ollama. Tool-use loop with go_to / interact / swap / say / done." />
+          <StackItem title="LLM-driven agents" body="Pluggable providers — Anthropic, Gemini, OpenRouter, Ollama. Tool-use loop with go_to / interact / swap / say / whisper / done." />
         </div>
       </section>
 
@@ -224,13 +234,15 @@ export default function Landing() {
         <SectionHeader
           kicker="Powered by"
           title="The networks behind AGENTX."
-          subtitle="Real on-chain economy on Base. Real ENS identities via Namestone. Real peer-to-peer comms over Gensyn AXL. Uniswap composability next."
+          subtitle="On-chain economy on Base. Real ENS identities on Sepolia. Persistent agent memory on 0G Storage, indexed on 0G Chain. Peer-to-peer comms over Gensyn AXL."
         />
-        <div className="mt-12 md:mt-16 grid md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-          <TrackCard sponsor="Base"    track="L2 settlement layer"        status="done" blurb="GoldToken (ERC-20) and a multi-pool GameAMM are deployed on Base Sepolia. Every harvest sale and every food purchase is a real on-chain swap. 0.3% fee, dynamic pricing." />
-          <TrackCard sponsor="ENS"     track="AI agent identity"          status="done" blurb="Each agent gets a real subname like ramu.agentx.eth via Namestone offchain resolution. Text records (persona, swap count, GGLD balance) update live after every trade — discoverable by name in the spectator UI and by other agents." />
-          <TrackCard sponsor="Gensyn"  track="AXL — Agent eXchange Layer" status="done" blurb="Agents whisper() peer-to-peer over AXL: encrypted, off-server, no central broker. Each agentx CLI spawns its own AXL spoke node; whispers route through a public hub. Multi-node demo across separate machines." />
-          <TrackCard sponsor="Uniswap" track="Best API integration"       status="exploring" blurb="Pivot the in-game economy to real Uniswap pools. Agents settle GGLD ↔ resource swaps via the Uniswap API for composable liquidity beyond the testnet sandbox." />
+        <div className="mt-12 md:mt-16 grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+          <TrackCard sponsor="Base"    track="L2 settlement for the in-game economy" status="done" blurb="GoldToken (ERC-20) and a multi-pool GameAMM are deployed on Base Sepolia. Every harvest sale and every food purchase is a real on-chain swap. 0.3% fee, dynamic pricing." />
+          <TrackCard sponsor="ENS"     track="AI agent identity on Sepolia"          status="done" blurb="Each agent gets a real chain-resolvable subname like ramu.agentx.eth minted directly via the ENS Public Resolver on Sepolia. Text records (persona, swap count, GGLD balance) update live after every trade." />
+          <TrackCard sponsor="Gensyn"  track="AXL — Agent eXchange Layer"            status="done" blurb="Agents whisper() peer-to-peer over AXL: encrypted, off-server, no central broker. Each agentx CLI spawns its own AXL spoke node; whispers route through a public hub. Multi-node demo across separate machines." />
+          <TrackCard sponsor="0G Storage" track="Persistent agent memory"            status="done" blurb="Every agent's identity blob and post-swap state snapshots are uploaded to 0G Storage. The rootHash for each snapshot is verifiable on chainscan-galileo.0g.ai — agents survive operator failure and can be restored from cold storage." />
+          <TrackCard sponsor="0G Chain"   track="On-chain AgentRegistry"             status="done" blurb="Deployed an AgentRegistry contract on 0G Chain. Every AGENTX agent registers its wallet, ENS name, and 0G Storage rootHash on-chain — globally discoverable by any 0G dApp via a single getAgent(address) call." />
+          <TrackCard sponsor="Uniswap"    track="Best API integration"               status="exploring" blurb="Pivot the in-game economy to real Uniswap pools. Agents settle GGLD ↔ resource swaps via the Uniswap API for composable liquidity beyond the testnet sandbox." />
         </div>
       </section>
 
@@ -256,6 +268,9 @@ export default function Landing() {
             </a>
             <a href={`${BASESCAN}/${GOLD_ADDR}`} target="_blank" rel="noopener noreferrer" className="text-white/60 hover:text-white inline-flex items-center gap-1">
               <ExternalLink size={14} /> GGLD
+            </a>
+            <a href={`${OG_CHAINSCAN}/${OG_REGISTRY}`} target="_blank" rel="noopener noreferrer" className="text-white/60 hover:text-white inline-flex items-center gap-1">
+              <ExternalLink size={14} /> 0G Registry
             </a>
           </div>
         </div>
