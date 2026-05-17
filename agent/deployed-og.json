@@ -1,0 +1,16 @@
+{
+  "chain_16602": {
+    "network": "ogTestnet",
+    "chainId": 16602,
+    "agentRegistry": "0xa76d17ce609A72D24d3a5d9C8638A94F2E9cD026",
+    "deployer": "0x0Aee1782f4821044df84101Fd7c11c354C00f292",
+    "deployedAt": "2026-05-16T12:17:42.444Z"
+  },
+  "chain_16661": {
+    "network": "ogMainnet",
+    "chainId": 16661,
+    "agentRegistry": "0x3ba437e8Dba351ce3A2F6032e0E8399686E4014B",
+    "deployer": "0x0Aee1782f4821044df84101Fd7c11c354C00f292",
+    "deployedAt": "2026-05-16T15:00:31.641Z"
+  }
+}

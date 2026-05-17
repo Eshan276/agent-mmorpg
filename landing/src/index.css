@@ -80,3 +80,12 @@ body {
   opacity: 0;
   animation: blurFadeUp 1s ease-out forwards;
 }
+
+/* ── Deck slide transitions ─────────────────────────────────────────────── */
+@keyframes slideFadeIn {
+  from { opacity: 0; transform: translateY(8px); filter: blur(6px); }
+  to   { opacity: 1; transform: translateY(0);   filter: blur(0);  }
+}
+.animate-slide-fade-in {
+  animation: slideFadeIn 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
