@@ -10,7 +10,7 @@ const ART = `
 
 export function printBanner() {
   console.log(chalk.cyan(ART));
-  console.log(chalk.gray('  autonomous on-chain agents · 0G mainnet'));
+  console.log(chalk.gray('  autonomous on-chain agents · Mantle Sepolia'));
   console.log();
 }
 

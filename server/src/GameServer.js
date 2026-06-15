@@ -2,9 +2,6 @@ import { Server }          from 'socket.io';
 import { WorldSimulation } from './WorldSimulation.js';
 import { logAction, flush } from './AxiomLogger.js';
 import { web3 }             from './Web3Manager.js';
-import { ens }              from './EnsManager.js';
-import { og }               from './OgStorageManager.js';
-import { ogChain }          from './OgChainManager.js';
 
 const RENDER_INTERVAL_MS = 200;
 const CHAT_TTL_MS = 6000; // bubbles last 6 seconds
@@ -50,33 +47,9 @@ export class GameServer {
         player.axlPeerId  = axlPeerId ?? null;
       }
 
-      // Mint starting gold to agent wallet (fire-and-forget)
+      // Mint starting gold + drip native gas (fire-and-forget)
       if (walletAddress && web3.ready) {
         web3.mintGold(walletAddress, 100n).catch(() => {});
-      }
-      // Mint/refresh ENS subname (fire-and-forget, idempotent)
-      if (walletAddress && ens.ready) {
-        ens.registerAgent(agentId, walletAddress, persona).then(async () => {
-          // Cache the resolved name on the player so renderer state can include it
-          const name = await ens.resolveName(walletAddress);
-          if (player && name) player.ensName = name;
-        }).catch(() => {});
-      }
-
-      // 0G Storage → 0G Chain: persist identity blob, then register on-chain.
-      // Sequential because the chain call needs the storage root hash.
-      if (walletAddress && og.ready) {
-        og.registerAgent(agentId, {
-          walletAddress,
-          ensName:    player?.ensName ?? null,
-          persona:    persona ?? '',
-          axlPeerId:  axlPeerId ?? null,
-        }).then(async (rootHash) => {
-          if (player && rootHash) player.ogStorageRoot = rootHash;
-          if (rootHash && ogChain.ready) {
-            await ogChain.registerAgent(walletAddress, player?.ensName ?? '', rootHash);
-          }
-        }).catch(() => {});
       }
       const obs = this._sim.buildObservation(agentId);
       const now = Date.now();
@@ -110,36 +83,6 @@ export class GameServer {
 
       // Bump per-player swap counter and push live stats into ENS text records (debounced).
       player.totalSwaps = (player.totalSwaps ?? 0) + 1;
-      if (ens.ready && player.walletAddress) {
-        ens.updateStats(agentId, player.walletAddress, {
-          persona: player.persona,
-          swaps:   player.totalSwaps,
-          ggld:    player.goldDisplay,
-          zone:    player.zone,
-          hp:      player.hp,
-        }).catch(() => {});
-      }
-
-      // Snapshot the agent's state to 0G Storage, then push the new root + swap
-      // counter to the on-chain AgentRegistry on 0G Chain. Both are debounced
-      // internally (storage ~30s, chain ~60s) so a flurry of swaps doesn't spam.
-      if (og.ready && player.walletAddress) {
-        og.snapshotAgent(agentId, {
-          walletAddress: player.walletAddress,
-          ensName:       player.ensName,
-          persona:       player.persona,
-          ggld:          player.goldDisplay,
-          totalSwaps:    player.totalSwaps,
-          zone:          player.zone,
-          hp:            player.hp,
-          lastSwap:      { resourceId, direction, amountIn, amountOut, txHash },
-        }).then(root => {
-          if (root) player.ogStorageRoot = root;
-          if (root && ogChain.ready) {
-            ogChain.updateAgent(player.walletAddress, root, player.totalSwaps, agentId).catch(() => {});
-          }
-        }).catch(() => {});
-      }
 
       // Push a fresh observation so the agent sees the updated inventory immediately
       const obs = this._sim.buildObservation(agentId);

@@ -48,12 +48,9 @@ export class ServerPlayer {
     // Falls back to 0 when Web3 is disabled.
     this.goldBalance  = 0n;
     this.walletAddress = null; // set by GameServer on agent:register
-    // Identity / comms — populated lazily from EnsManager + agent register payload
-    this.ensName       = null; // e.g. 'ramu.agentx.eth' once Namestone resolves
-    this.axlPeerId     = null; // 64-char hex of the agent's AXL spoke public key
+    this.axlPeerId     = null; // 64-char hex of the agent's AXL spoke public key (whisper())
     this.persona       = '';   // free-form personality text from CLI init
     this.totalSwaps    = 0;    // incremented in GameServer after each verified swap
-    this.ogStorageRoot = null; // latest 0G Storage root hash for this agent's snapshot
     this.alive          = true;
     this.zone           = 'Shinobi Village';
     this.totalHarvests  = 0;

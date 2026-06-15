@@ -46,20 +46,8 @@ class Web3Manager {
       return;
     }
 
-    // Pick which chain the economy runs on. WEB3_CHAIN=og-mainnet|og-testnet|base-sepolia
-    // Default is base-sepolia for backwards compat with the original deploy.
-    const chain = (process.env.WEB3_CHAIN || 'base-sepolia').toLowerCase();
-    const CHAINS = {
-      'base-sepolia': { chainId: 84532, defaultRpc: 'https://sepolia.base.org',         envRpc: 'BASE_SEPOLIA_RPC_URL' },
-      'og-mainnet':   { chainId: 16661, defaultRpc: 'https://evmrpc.0g.ai',             envRpc: 'OG_MAINNET_RPC_URL'   },
-      'og-testnet':   { chainId: 16602, defaultRpc: 'https://evmrpc-testnet.0g.ai',     envRpc: 'OG_TESTNET_RPC_URL'   },
-    };
-    const spec = CHAINS[chain];
-    if (!spec) {
-      console.warn(`[Web3] unknown WEB3_CHAIN=${chain} — Web3 disabled (use base-sepolia | og-mainnet | og-testnet)`);
-      return;
-    }
-    const rpcUrl = process.env[spec.envRpc] || spec.defaultRpc;
+    const rpcUrl  = process.env.MANTLE_RPC_URL || 'https://rpc.sepolia.mantle.xyz';
+    const chainId = 5003;
 
     const deployedPath = join(__dir, '../../contracts/deployed.json');
     if (!existsSync(deployedPath)) {
@@ -68,22 +56,20 @@ class Web3Manager {
     }
     const deployed = JSON.parse(readFileSync(deployedPath, 'utf-8'));
 
-    // Prefer the per-chainId block; fall back to the flat keys for backwards compat.
-    const block = deployed[`chain_${spec.chainId}`] || deployed;
-    if (!block?.gameAMM || !block?.goldToken) {
-      console.warn(`[Web3] no GameAMM/GoldToken in deployed.json for chainId ${spec.chainId} — disabled`);
+    if (!deployed.gameAMM || !deployed.goldToken) {
+      console.warn('[Web3] deployed.json missing gameAMM / goldToken — re-run deploy script. Disabled.');
       return;
     }
 
     this._provider = new ethers.JsonRpcProvider(rpcUrl);
     this._wallet   = new ethers.Wallet(privKey, this._provider);
-    this._gold     = new ethers.Contract(block.goldToken, GOLD_ABI, this._wallet);
-    this._amm      = new ethers.Contract(block.gameAMM,   AMM_ABI,  this._wallet);
+    this._gold     = new ethers.Contract(deployed.goldToken, GOLD_ABI, this._wallet);
+    this._amm      = new ethers.Contract(deployed.gameAMM,   AMM_ABI,  this._wallet);
     this._rpcUrl   = rpcUrl;
-    this._chainId  = spec.chainId;
+    this._chainId  = chainId;
 
     const network = await this._provider.getNetwork();
-    console.log(`[Web3] connected — chain ${network.chainId} (${chain}), gold=${block.goldToken} amm=${block.gameAMM}, server wallet ${this._wallet.address}`);
+    console.log(`[Web3] connected — Mantle Sepolia (chain ${network.chainId}), gold=${deployed.goldToken} amm=${deployed.gameAMM}, server wallet ${this._wallet.address}`);
     this._ready = true;
 
     this._refreshPrices();

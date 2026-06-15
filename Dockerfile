@@ -49,8 +49,7 @@ COPY --from=client-build /repo/node_modules ./node_modules
 
 # Server source + Web3 contract addresses
 COPY server   ./server
-COPY contracts/deployed.json    ./contracts/deployed.json
-COPY contracts/deployed-og.json ./contracts/deployed-og.json
+COPY contracts/deployed.json ./contracts/deployed.json
 
 # WorldSimulation reads ../../client/public/tilemap.json relative to server/src/
 # Ship the source tilemap so that relative path still resolves at runtime.

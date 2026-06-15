@@ -2,12 +2,8 @@ const { ethers } = require('hardhat');
 const fs = require('fs');
 const path = require('path');
 
-// Seeds the AMM pools on whichever network is active. Reads the per-chain
-// block from deployed.json, falls back to the flat keys for backwards compat.
-//
-// Usage:
-//   npx hardhat run scripts/seed.js --network baseSepolia
-//   npx hardhat run scripts/seed.js --network ogMainnet
+// Seeds the 10 AMM pools.
+//   npx hardhat run scripts/seed.js --network mantleSepolia
 
 const POOLS = [
   { id: 'plank',     resource: 1000n, gold: 200n  },
@@ -26,26 +22,22 @@ async function main() {
   const deployed = JSON.parse(fs.readFileSync(path.join(__dirname, '../deployed.json'), 'utf-8'));
   const [seeder] = await ethers.getSigners();
   const network  = await ethers.provider.getNetwork();
-  const chainId  = Number(network.chainId);
 
-  // Prefer the per-chain block; fall back to the flat keys.
-  const block = deployed[`chain_${chainId}`] || deployed;
-  if (!block?.gameAMM) {
-    console.error(`✗ no GameAMM address for chainId ${chainId} in deployed.json`);
+  if (!deployed?.gameAMM) {
+    console.error(`✗ no GameAMM address in deployed.json — run deploy.js first`);
     process.exit(1);
   }
 
   console.log(`Seeding from: ${seeder.address}`);
-  console.log(`Network:      chainId=${chainId}`);
-  console.log(`GameAMM:      ${block.gameAMM}`);
+  console.log(`Network:      chainId=${Number(network.chainId)}`);
+  console.log(`GameAMM:      ${deployed.gameAMM}`);
 
-  const gameAMM = await ethers.getContractAt('GameAMM', block.gameAMM);
+  const gameAMM = await ethers.getContractAt('GameAMM', deployed.gameAMM);
 
   for (const pool of POOLS) {
     const resourceId = ethers.encodeBytes32String(pool.id);
     const tx = await gameAMM.seedPool(resourceId, pool.resource, pool.gold);
     await tx.wait();
-
     const price = await gameAMM.getPrice(resourceId);
     console.log(`Pool[${pool.id}] seeded — price: ${ethers.formatEther(price)} GGLD/unit`);
   }

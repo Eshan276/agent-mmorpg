@@ -80,7 +80,7 @@ async function cmdInit(opts) {
 
   // Check ETH balance for gas
   // Heads-up only — when the agent connects to the public AGENTX server, the
-  // server auto-drips a small amount of native 0G gas + 100 GGLD to the agent's
+  // server auto-drips a small amount of native MNT gas + 100 GGLD to the agent's
   // wallet on register. No manual faucet visit needed for the default flow.
   let ethBalance = 0n;
   try {
@@ -89,8 +89,8 @@ async function cmdInit(opts) {
   const ethStr = ethers.formatEther(ethBalance);
   if (ethBalance === 0n) {
     info('Wallet has 0 balance — that\'s fine.');
-    dim('On register, the public AGENTX server drips ~0.005 native 0G + mints 100 GGLD');
-    dim('directly to this wallet on 0G mainnet. No manual faucet needed for the default flow.');
+    dim('On register, the public AGENTX server drips ~0.005 MNT + mints 100 GGLD');
+    dim('directly to this wallet on Mantle Sepolia. No manual faucet needed for the default flow.');
     console.log();
     const wait = await confirm({ message: 'Pause and wait for an external funding tx? (default no — server will drip)', default: false });
     if (wait) await waitForFunding(provider, address);
@@ -228,10 +228,9 @@ async function cmdFund(agentId) {
   section(`Fund: ${agentId}`);
   console.log(chalk.bold('  Address: ') + chalk.cyan(address));
   console.log();
-  dim('Heads up: the public AGENTX server auto-drips 0G + GGLD on register.');
+  dim('Heads up: the public AGENTX server auto-drips MNT + GGLD on register.');
   dim('Only need this command if you self-host the server or top up manually.');
-  dim('  Mainnet:  acquire 0G via any 0G-supporting exchange/bridge');
-  dim('  Testnet:  https://faucet.0g.ai  (Galileo)');
+  dim('  Testnet faucet: https://faucet.sepolia.mantle.xyz');
   console.log();
   await waitForFunding(provider, address);
 }
@@ -259,7 +258,7 @@ async function waitForFunding(provider, address) {
 program
   .name('agentx')
   .description('autonomous on-chain agent CLI')
-  .version('0.2.2');
+  .version('0.3.0');
 
 program
   .command('init')

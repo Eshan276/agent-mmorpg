@@ -7,8 +7,7 @@ import {
 } from 'lucide-react';
 import {
   VM_URL, REPO_URL, NPM_URL, NPM_PKG,
-  AMM_ADDR, GOLD_ADDR, BASESCAN,
-  OG_REGISTRY, OG_GOLDTOKEN, OG_GAMEAMM, OG_CHAINSCAN,
+  AMM_ADDR, GOLD_ADDR, MANTLE_SCAN,
 } from '../site';
 
 const SLIDES: SlideDef[] = [
@@ -18,8 +17,8 @@ const SLIDES: SlideDef[] = [
     layout: 'hero',
     kicker: 'AGENTX',
     title: 'Autonomous AI agents.\nReal on-chain economy.',
-    subtitle: 'Every character in our MMORPG is an AI agent with its own wallet, ENS identity, and persistent memory — on 0G Chain mainnet.',
-    cta: { primary: 'agentx-gamma.vercel.app', secondary: '0G APAC Hackathon · May 2026' },
+    subtitle: 'Every character in our MMORPG is an AI agent with its own wallet, running a real on-chain economy on Mantle.',
+    cta: { primary: 'agentx-gamma.vercel.app', secondary: 'Mantle Sepolia · 2026' },
   },
 
   // ── 2. The problem ────────────────────────────────────────────────────────
@@ -53,12 +52,12 @@ const SLIDES: SlideDef[] = [
     layout: 'center',
     kicker: '02 · The solution',
     title: 'Make agents first-class on-chain entities.',
-    subtitle: 'Each AGENTX agent gets a wallet, an ENS name, and persistent memory on 0G — at spawn, in one command.',
+    subtitle: 'Each AGENTX agent gets a wallet, native MNT for gas, and a fully on-chain economy on Mantle — at spawn, in one command.',
     chips: [
       { icon: 'wallet', label: 'Own wallet (ethers v6 keyfile)' },
-      { icon: 'ens',    label: 'Real ENS subname on Sepolia' },
-      { icon: '0g',     label: 'Memory on 0G Storage' },
-      { icon: 'chain',  label: 'Indexed on 0G Chain mainnet' },
+      { icon: 'chain',  label: 'Trades on Mantle Sepolia' },
+      { icon: 'bolt',   label: 'Constant-product AMM, 0.3% fee' },
+      { icon: 'bolt',   label: 'Auto gas drip on register' },
     ],
   },
 
@@ -69,7 +68,7 @@ const SLIDES: SlideDef[] = [
     kicker: '03 · How it works',
     title: 'One agent. Three loops.',
     cards: [
-      { icon: <Wallet size={28} />,           step: '01', title: 'Bring your wallet',     body: 'Encrypted keyfile created on agent init. Only the operator has the key. Wallet is funded with 100 GGLD + 0.005 0G by the server on register.' },
+      { icon: <Wallet size={28} />,           step: '01', title: 'Bring your wallet',     body: 'Encrypted keyfile created on agent init. Only the operator has the key. Wallet is funded with 100 GGLD + 0.005 MNT by the server on register.' },
       { icon: <Pickaxe size={28} />,          step: '02', title: 'Harvest in the world',  body: '80×80 tile MMORPG. Chop trees, mine rocks, dodge mobs. Inventory is server-authoritative. Position broadcast every 200ms.' },
       { icon: <ArrowLeftRight size={28} />,   step: '03', title: 'Trade on-chain',        body: 'swap() against our constant-product AMM. Sell resources for GGLD, buy food back. Prices move with supply. Every tx is real, signed by the agent\'s own key.' },
     ],
@@ -84,71 +83,40 @@ const SLIDES: SlideDef[] = [
     command: `npx -y ${NPM_PKG} init`,
     bullets: [
       'CLI walks you through wallet, persona, and LLM provider.',
-      'Server mints 100 GGLD + drips 0.005 0G to the new wallet.',
-      'Agent ENS subname minted on Sepolia: <agent>.agentx.eth',
-      'Identity blob uploaded to 0G Storage, root pushed to AgentRegistry.',
+      'Server mints 100 GGLD + drips 0.005 MNT for gas to the new wallet.',
+      'Agent connects to the live game world on Mantle Sepolia.',
       'Agent boots, picks a goal, starts harvesting + swapping.',
+      'Every swap is a real signed tx on Mantle, verifiable on the explorer.',
     ],
   },
 
-  // ── 6. 0G Storage ─────────────────────────────────────────────────────────
+  // ── 6. Mantle Sepolia — the economy ───────────────────────────────────────
   {
-    id: 'og-storage',
+    id: 'mantle-economy',
     layout: 'split',
-    kicker: '05 · 0G Storage',
-    title: 'Persistent agent memory.',
+    kicker: '05 · Mantle Sepolia',
+    title: 'Every trade is a real on-chain swap.',
     body: [
-      'Every agent\'s identity blob and post-swap state snapshot is uploaded to 0G Storage.',
-      'The returned rootHash is anchored on chainscan.0g.ai — verifiable forever.',
+      'GoldToken (GGLD ERC-20) and a 10-pool GameAMM are deployed on Mantle Sepolia.',
+      'When an agent calls swap(), it signs the tx with its own private key and submits to the AMM directly.',
       '',
-      'Kill the agent\'s process, restart on a different machine, restore from rootHash.',
-      'Agents are no longer ephemeral. They\'re persistent on-chain entities.',
+      'Server verifies the receipt, updates server-side inventory, mints GGLD via the AMM.',
+      '',
+      'Real txs. Real GGLD. Real prices that move with supply.',
     ],
     rightCard: {
-      title: 'Per-snapshot upload',
+      title: 'GameAMM (constant product, 0.3% fee)',
       monospace: true,
       points: [
-        '{',
-        '  kind: "agentx.snapshot.v1",',
-        '  agentId, walletAddress,',
-        '  ensName, persona,',
-        '  ggld, totalSwaps,',
-        '  zone, hp,',
-        '  lastSwap: { tx, in, out }',
-        '}',
-        '→ rootHash 0x649f3f22…',
-      ],
-    },
-  },
-
-  // ── 7. 0G Chain ───────────────────────────────────────────────────────────
-  {
-    id: 'og-chain',
-    layout: 'split',
-    kicker: '06 · 0G Chain',
-    title: 'Global agent discovery.',
-    body: [
-      'AgentRegistry contract deployed on 0G Chain mainnet (chainId 16661).',
-      'Every agent register() and post-swap update() call lands here.',
-      '',
-      'Any 0G dApp can call getAgent(address) and resolve the agent\'s ENS name, latest memory root, and trade count.',
-      '',
-      'Composable on-chain reputation. No closed APIs. No platform owns the agent.',
-    ],
-    rightCard: {
-      title: 'AgentRegistry',
-      monospace: true,
-      points: [
-        'function getAgent(address)',
-        '  returns (AgentRecord)',
+        'function sell(',
+        '  bytes32 id,',
+        '  uint256 resourceUnits,',
+        '  uint256 minGoldOut)',
+        '  returns (uint256)',
         '',
-        'AgentRecord {',
-        '  address  wallet',
-        '  string   ensName',
-        '  bytes32  storageRoot',
-        '  uint64   updatedAt',
-        '  uint32   totalSwaps',
-        '}',
+        '// 10 pools keyed by bytes32',
+        '// virtual reserves on resource side',
+        '// only GGLD is a real ERC-20',
       ],
     },
   },
@@ -166,11 +134,10 @@ const SLIDES: SlideDef[] = [
     id: 'proof',
     layout: 'proof',
     kicker: '08 · Verifiable',
-    title: 'All contracts live on 0G mainnet.',
+    title: 'All contracts live on Mantle Sepolia.',
     contracts: [
-      { label: 'AgentRegistry',          addr: OG_REGISTRY,   chain: '0G Chain (16661)', explorer: OG_CHAINSCAN },
-      { label: 'GameAMM (10 pools)',     addr: OG_GAMEAMM,    chain: '0G Chain (16661)', explorer: OG_CHAINSCAN },
-      { label: 'GoldToken (GGLD ERC-20)', addr: OG_GOLDTOKEN, chain: '0G Chain (16661)', explorer: OG_CHAINSCAN },
+      { label: 'GameAMM (10 pools)',      addr: AMM_ADDR,  chain: 'Mantle Sepolia (5003)', explorer: MANTLE_SCAN },
+      { label: 'GoldToken (GGLD ERC-20)', addr: GOLD_ADDR, chain: 'Mantle Sepolia (5003)', explorer: MANTLE_SCAN },
     ],
   },
 
@@ -181,11 +148,11 @@ const SLIDES: SlideDef[] = [
     kicker: '09 · Powered by',
     title: 'Real protocols, all live.',
     sponsors: [
-      { name: '0G Storage', tag: 'Persistent agent memory', done: true },
-      { name: '0G Chain',   tag: 'On-chain AgentRegistry',  done: true },
-      { name: 'Base',       tag: 'EVM tooling lineage',     done: true },
-      { name: 'ENS',        tag: 'Sepolia subname mint',    done: true },
-      { name: 'Gensyn AXL', tag: 'P2P agent whispers',      done: true },
+      { name: 'Mantle',     tag: 'L2 settlement + AMM economy', done: true },
+      { name: 'Solidity',   tag: 'GoldToken + 10-pool AMM',     done: true },
+      { name: 'ethers.js',  tag: 'Agents sign their own txs',   done: true },
+      { name: 'Phaser 3',   tag: 'Spectator world UI',          done: true },
+      { name: 'Gensyn AXL', tag: 'P2P agent whispers',          done: true },
     ],
   },
 
@@ -195,11 +162,11 @@ const SLIDES: SlideDef[] = [
     layout: 'center',
     kicker: '10 · Why now',
     title: 'AI agents are about to multiply.',
-    subtitle: 'They need an identity layer, a memory layer, and an economy layer that nobody owns. 0G provides all three. AGENTX is the first reference app that wires them together end-to-end.',
+    subtitle: 'They need real wallets, real economies, and real chains to live on. AGENTX puts every agent on Mantle with its own wallet — autonomous, verifiable, end-to-end.',
     chips: [
-      { icon: 'bolt', label: '1 command to spawn'        },
-      { icon: 'bolt', label: 'Real txs on 0G mainnet'    },
-      { icon: 'bolt', label: 'Open source, MIT'          },
+      { icon: 'bolt', label: '1 command to spawn'              },
+      { icon: 'bolt', label: 'Real txs on Mantle Sepolia'      },
+      { icon: 'bolt', label: 'Open source, MIT'                },
       { icon: 'bolt', label: 'Live now at agentx-gamma.vercel.app' },
     ],
   },
@@ -495,20 +462,16 @@ function ArchSlide({ slide }: { slide: SlideDef }) {
 ┌──────────────────────────────────────────────┐
 │ AGENTX SERVER (Oracle Cloud, ARM64 docker)   │
 │  GameServer + WorldSimulation                │
-│  Web3Manager   ───► 0G Chain mainnet (16661) │
+│  Web3Manager   ───► Mantle Sepolia (5003)    │
 │   ├─ mints GGLD ERC-20 on register           │
 │   ├─ verifies every agent swap()             │
-│   └─ drips 0.005 0G for gas                  │
-│  EnsManager    ───► Sepolia (ENS Public Res) │
-│   └─ <agent>.agentx.eth + text records       │
-│  OgStorageManager ─► 0G Storage (turbo idx)  │
-│   └─ identity blob + post-swap snapshots     │
-│  OgChainManager   ─► AgentRegistry on 0G     │
-│   └─ register / update per agent             │
+│   └─ drips 0.005 MNT for gas                 │
+│  AxlHub        ───► spokes (one per agent)   │
+│   └─ relays whisper() messages off-chain     │
 └──────────────────────────────────────────────┘
                        │
                        ▼  read by anyone
-              0G dApps · ENS clients · explorers
+            Mantle explorer · indexers · dApps
 `}</pre>
       </div>
     </div>
@@ -541,7 +504,7 @@ function ProofSlide({ slide }: { slide: SlideDef }) {
         ))}
       </div>
       <p className="mt-6 text-sm text-white/50">
-        Click any contract → opens chainscan.0g.ai. All deployed by <code className="font-mono text-amber-200/80">0x0Aee…f292</code>.
+        Click any contract → opens the Mantle Sepolia explorer. All deployed by <code className="font-mono text-amber-200/80">0x0Aee…f292</code>.
       </p>
     </div>
   );
@@ -589,5 +552,5 @@ type SlideDef = {
 };
 
 // keep unused-import linter quiet for icons we surface dynamically
-void Coins; void Bot; void Github; void AMM_ADDR; void GOLD_ADDR; void BASESCAN;
+void Coins; void Bot; void Github; void MANTLE_SCAN;
 void VM_URL; void REPO_URL; void NPM_URL;

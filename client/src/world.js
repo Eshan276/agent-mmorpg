@@ -510,8 +510,7 @@ class WorldScene extends Phaser.Scene {
       });
       rp.sprite.play(`walk_${direction}`, true).setAlpha(alpha);
       rp.nameTag.setPosition(px, py - TILE - 2);
-      // Prefer ENS label over the last-6-chars of agentId once Namestone resolves.
-      const desiredLabel = p.ensName ? p.ensName.split('.')[0] : agentId.slice(-6);
+      const desiredLabel = agentId.slice(-6);
       if (rp.nameTag.text !== desiredLabel) rp.nameTag.setText(desiredLabel);
       rp.hpTag.setText(`${hp}/${maxHp}`).setPosition(px, py - TILE - 10);
       // Store latest data for tooltip
@@ -558,7 +557,7 @@ class WorldScene extends Phaser.Scene {
 
   _showTooltip(p, screenX, screenY) {
     if (!this._tooltip) return;
-    const { agentId, hp, maxHp, energy, maxEnergy, gold, zone, alive, inventory = [], walletAddress, ensName: realEns, ogStorageRoot } = p;
+    const { agentId, hp, maxHp, energy, maxEnergy, gold, zone, alive, inventory = [], walletAddress } = p;
 
     const hpPct  = Math.round(hp  / maxHp  * 100);
     const enPct  = Math.round(energy / maxEnergy * 100);
@@ -566,22 +565,17 @@ class WorldScene extends Phaser.Scene {
       ? inventory.map(i => `<span class="inv-item">${i.name}${i.qty > 1 ? ` ×${i.qty}` : ''}</span>`).join('')
       : '<span class="inv-empty">empty</span>';
 
-    // GGLD balance — server sends a string like "100.00" via goldDisplay; fall back to "0.00".
     const goldStr = gold ?? '0.00';
-
-    // Prefer the real Namestone-resolved name; fall back to a mock when ENS is disabled.
-    const ensName = realEns
-      || `${String(agentId).toLowerCase().replace(/[^a-z0-9-]/g, '')}.agentx.eth`;
-    const ensIsReal = !!realEns;
     const shortAddr = walletAddress
       ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`
+      : null;
+    const explorerHref = walletAddress
+      ? `https://explorer.sepolia.mantle.xyz/address/${walletAddress}`
       : null;
 
     this._tooltip.innerHTML = `
       <div class="tt-name">${agentId}${alive ? '' : ' 💀'}</div>
-      <div class="tt-ens ${ensIsReal ? 'tt-ens-real' : 'tt-ens-mock'}">
-        <span class="tt-ens-dot"></span>${ensName}${ensIsReal ? `<a class="tt-ens-link" href="https://app.ens.domains/${ensName}" target="_blank" rel="noopener" title="View on app.ens.domains">↗</a>` : ''}${shortAddr ? ` <span class="tt-addr">${shortAddr}</span>` : ''}
-      </div>
+      ${shortAddr ? `<div class="tt-ens"><span class="tt-ens-dot"></span>${shortAddr}${explorerHref ? `<a class="tt-ens-link" href="${explorerHref}" target="_blank" rel="noopener" title="View on Mantle explorer">↗</a>` : ''}</div>` : ''}
       <div class="tt-zone">${zone}</div>
       <div class="tt-row"><span class="tt-label">HP</span>
         <div class="tt-bar"><div class="tt-fill hp" style="width:${hpPct}%"></div></div>
@@ -592,13 +586,6 @@ class WorldScene extends Phaser.Scene {
         <span class="tt-val">${energy}/${maxEnergy}</span>
       </div>
       <div class="tt-gold">⬡ ${goldStr} GGLD</div>
-      ${ogStorageRoot ? `
-        <div class="tt-og">
-          <span class="tt-og-dot"></span>
-          backed up on 0G
-          <a class="tt-og-link" href="https://storagescan.0g.ai/tx/${ogStorageRoot}" target="_blank" rel="noopener" title="View 0G Storage record">↗</a>
-        </div>
-      ` : ''}
       <div class="tt-inv">${invHtml}</div>
     `;
 

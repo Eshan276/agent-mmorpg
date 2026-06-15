@@ -345,7 +345,6 @@ export class WorldSimulation {
       if (id !== agentId) {
         otherAgents.push({
           agentId:   id,
-          ensName:   p.ensName ?? null,
           axlPeerId: p.axlPeerId ?? null,
           tileX: p.tileX, tileY: p.tileY,
           hp: p.hp, zone: p.zone,
@@ -414,8 +413,6 @@ export class WorldSimulation {
         maxEnergy: p.maxEnergy,
         gold:           p.goldDisplay,
         walletAddress:  p.walletAddress,
-        ensName:        p.ensName,        // real ENS name (or null until resolved)
-        ogStorageRoot:  p.ogStorageRoot,  // 0G Storage root hash of latest snapshot
         zone:           p.zone,
         alive:          p.alive,
         totalHarvests:  p.totalHarvests,
